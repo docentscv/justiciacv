@@ -574,37 +574,43 @@ function applyMe(me) {
   }
 }
 
-/* paso 1 y 2 del alta: buscar la fila y confirmarla */
-function accAlta(flash) {
+/* paso 1 y 2 del alta: buscar las filas y confirmarlas (se puede estar en varios cuerpos a la vez) */
+function accAlta(flash, opts) {
   var r = accRoot(); if (!r) return;
+  var add = !!(opts && opts.add);
   var lw = weeks.filter(function (w) { return w.filas != null; }).pop();
-  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Encuentra tu fila</h2><p class="hint">Escribe tu nombre y apellidos como salen en el listado oficial. Se busca en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '.</p></div></div>' +
+  var homesHtml = add ? '' : '<div class="field"><label for="n-home">Tu población</label><select class="input" id="n-home">' + D.pobs.map(function (p) { return { n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); }).map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select><p class="hint" style="margin-top:6px">Donde vives o desde donde te mueves. Se usa para ordenar las ofertas por distancia. Podrás cambiarla cuando quieras.</p></div>';
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>' + (add ? 'Buscar otra vez tu nombre' : 'Encuentra tu fila') + '</h2><p class="hint">Escribe tu nombre y apellidos como salen en el listado oficial. Se busca en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '.</p></div></div>' +
     msg(flash) +
-    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' +
-    '<div class="field"><label for="n-home">Tu población</label><select class="input" id="n-home">' + D.pobs.map(function (p, i) { return { n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); }).map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select><p class="hint" style="margin-top:6px">Donde vives o desde donde te mueves. Se usa para ordenar las ofertas por distancia. Podrás cambiarla cuando quieras.</p></div><div id="f-msg"></div><button class="btn primary" type="submit">Buscar mi fila</button></form>' +
+    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' + homesHtml + '<div id="f-msg"></div><div class="row"><button class="btn primary" type="submit">Buscar mi fila</button>' + (add ? '<button class="btn" type="button" id="n-cancel">Cancelar</button>' : '') + '</div></form>' +
     '<div id="n-out" style="margin-top:14px;display:grid;gap:10px"></div></section>' +
     '<section class="callout"><b>Tu nombre no se guarda.</b> Se convierte en un código que no se puede deshacer y se descarta. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>' +
     accCard(true);
   bindAccCard();
+  if (add) $('#n-cancel').addEventListener('click', function () { accLoad(); });
+  var tienes = {}; if (A.me && A.me.listas) A.me.listas.forEach(function (l) { tienes[l.cuerpo] = 1; });
   submitForm($('#n-f'), function () {
     var nombre = $('#n-nombre').value.trim(); A.nombre = nombre; $('#n-out').innerHTML = '';
     if (nombre.length < 6) throw new Error('Escribe nombre y apellidos.');
     return ACC.buscar(nombre).then(function (rows) {
       $('#f-msg').innerHTML = '';
       if (!rows.length) { $('#n-out').innerHTML = '<div class="msg">No hemos encontrado ese nombre en el último listado. Prueba con los dos apellidos, o revisa cómo sale escrito en el PDF. Si tu cuerpo no tuvo ofertas esa semana, no aparece en el listado.</div>'; return; }
-      $('#n-out').innerHTML = '<p class="hint">Esto es lo que hemos encontrado. Confirma cuál eres tú:</p>' + rows.map(function (x, i) {
-        return '<div class="cand"><div><b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span class="muted">Puesto ' + x.posicion_en_grupo + ' de ' + x.personas_en_grupo + ' en tu grupo (convocatoria ' + x.convocatoria + '/2026)</span></div><button class="btn primary small" type="button" data-ok="' + i + '">Soy yo</button></div>';
-      }).join('');
-      $$('button[data-ok]', $('#n-out')).forEach(function (b) {
-        b.addEventListener('click', function () {
-          var x = rows[+b.dataset.ok]; b.disabled = true; b.textContent = 'Un momento…';
-          ACC.confirmar(A.nombre, x.cuerpo, x.orden).then(function () {
-            A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
-            var id = pidOfName(C.home), g = id != null ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
-            return g['catch'](function () {}).then(function () { accLoad({ ok: 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
-          },
-            function (e) { b.disabled = false; b.textContent = 'Soy yo'; $('#f-msg').innerHTML = msg({ err: e.message }); });
-        });
+      $('#n-out').innerHTML = '<p class="hint">' + (rows.length > 1 ? 'Esto es lo que hemos encontrado. Puedes estar en varios cuerpos a la vez: deja marcadas todas las filas que sean tuyas.' : 'Esto es lo que hemos encontrado. Confirma que eres tú:') + '</p>' + rows.map(function (x, i) {
+        var ya = !!tienes[x.cuerpo];
+        return '<label class="cand"><span class="candck"><input type="checkbox" data-ck="' + i + '" checked' + (ya ? ' disabled' : '') + '><span><b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span class="muted">Puesto ' + x.posicion_en_grupo + ' de ' + x.personas_en_grupo + ' en tu grupo (convocatoria ' + x.convocatoria + '/2026)</span></span></span>' + (ya ? '<span class="pill ok">Ya la tienes</span>' : '') + '</label>';
+      }).join('') + '<div class="row"><button class="btn primary" type="button" id="n-ok">' + (rows.length > 1 ? 'Soy yo en las filas marcadas' : 'Soy yo') + '</button></div>';
+      var cks = $$('input[data-ck]', $('#n-out')), okb = $('#n-ok');
+      function marcadas() { return rows.filter(function (x, i) { return cks[i].checked && !cks[i].disabled; }); }
+      function refresca() { okb.disabled = !marcadas().length; }
+      cks.forEach(function (c) { c.addEventListener('change', refresca); }); refresca();
+      okb.addEventListener('click', function () {
+        var elegidas = marcadas(); if (!elegidas.length) return;
+        okb.disabled = true; okb.textContent = 'Un momento…';
+        elegidas.reduce(function (p, x) { return p.then(function () { return ACC.confirmar(A.nombre, x.cuerpo, x.orden); }); }, Promise.resolve()).then(function () {
+          A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
+          var id = pidOfName(C.home), g = (!add && id != null) ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
+          return g['catch'](function () {}).then(function () { accLoad({ ok: add ? 'Listo. Hemos añadido tus filas.' : 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
+        }, function (e) { okb.disabled = false; okb.textContent = rows.length > 1 ? 'Soy yo en las filas marcadas' : 'Soy yo'; $('#f-msg').innerHTML = msg({ err: e.message }); });
       });
     });
   });
@@ -661,11 +667,14 @@ function drawDash(head) {
     return bindAccCard();
   }
   var cur = rows[A.sel] || rows[0], S = { cu: cur.cuerpo, g: cur.grupo, pos: cur.posicion_en_grupo };
-  var sel = rows.length > 1 ? '<div class="row" role="group" aria-label="Cuerpo" style="margin-bottom:12px">' + rows.map(function (x, i) { return '<button class="chip" type="button" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + esc(cuNombre(x.cuerpo)) + '</button>'; }).join('') + '</div>' : '';
+  var sel = '';
   var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
   var hist = A.hist.filter(function (x) { return x.cuerpo === cur.cuerpo; });
-  var resumen = '<div class="mytop"><b>' + esc(cuNombre(cur.cuerpo)) + ' · grupo ' + cur.grupo + '</b><span>Puesto <b class="num">' + cur.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + cur.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill">' + esc(C.home) + '</span></div>';
-  r.innerHTML = head.replace('</section>', '') + sel + resumen + '<p style="margin-top:6px"><span class="pill' + (cur.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[cur.estado] || cur.estado) + '</span> <span class="muted num">Convocatoria ' + cur.convocatoria + '/2026</span></p></section>' +
+  var resumen = rows.map(function (x, i) {
+    var inner = '<b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span>Puesto <b class="num">' + x.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + x.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill' + (x.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[x.estado] || x.estado) + '</span>';
+    return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
+  }).join('') + '<p class="muted" style="margin-top:10px">Convocatoria <span class="num">' + cur.convocatoria + '/2026</span> · Población: <b>' + esc(C.home) + '</b></p>';
+  r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' +
     '<section class="card"><div class="field" style="max-width:340px"><label for="c-home">Mi población</label><select class="input" id="c-home">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div><p class="hint" style="margin-top:8px">Se usa para ordenar las ofertas por distancia. Se guarda en tu cuenta.</p></section>' +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
@@ -674,7 +683,9 @@ function drawDash(head) {
     '<section class="card"><div class="sec-h"><h3>Alertas</h3><span class="pill">Próximamente</span></div><p class="hint">Avisos por correo, para no tener que entrar cada semana.</p>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Ofertas nuevas en mis poblaciones y mi cuerpo, cuando se publica el listado del viernes.</label>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label></section>' +
+    '<section class="card"><h3>¿Estás en más cuerpos?</h3><p class="hint">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si tu nombre no salía en alguno, puedes buscarlo otra vez cuando aparezca. Tu nombre no se guarda: hay que escribirlo de nuevo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar otra vez mi nombre</button></div></section>' +
     accCard(true);
+  $('#b-add').addEventListener('click', function () { accAlta(null, { add: true }); });
   $$('button[data-sel]', r).forEach(function (b) { b.addEventListener('click', function () { A.sel = +b.dataset.sel; drawDash(head); }); });
   $('#c-home').addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); rerenderAcc(); });
   bindTables(r); bindAccCard();

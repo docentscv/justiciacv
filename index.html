@@ -117,9 +117,15 @@ main { padding-top: 22px; display: grid; gap: 22px; }
 .chip[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; display: inline-block; }
 .d-vac { background: var(--c-vac); } .d-sus { background: var(--c-sus); } .d-ref { background: var(--c-ref); }
-.mytop { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 12px; padding: 12px 14px; border-radius: 12px; background: var(--tint); }
+.mytop { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 10px; padding: 12px 14px; border-radius: 12px; background: var(--tint); border: 2px solid transparent; }
 .mytop > b { flex-basis: 100%; font-size: 17px; }
-.mytop .pill { background: var(--card, #fff); }
+.mytop .pill { background: var(--surface); }
+button.mytop { width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.mytop[aria-pressed="true"] { border-color: var(--brand); }
+.candck { display: flex; gap: 12px; align-items: flex-start; }
+.candck input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+.candck b { display: block; }
+label.cand { cursor: pointer; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: var(--tint); white-space: nowrap; }
 .pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
