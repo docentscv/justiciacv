@@ -3,7 +3,7 @@
 var D = window.JCV_D;
 var ACC = window.JCV_ACC || null, NOTE = window.JCV_NOTE || '';
 /* Enlace de Némesis (la aplicación de la Generalitat donde se piden las ofertas). Vacío = el botón no se muestra. */
-var NEMESIS_URL = window.JCV_NEMESIS || '';
+var NEMESIS_URL = window.JCV_NEMESIS !== undefined ? window.JCV_NEMESIS : 'https://gvlogin.gva.es/gvlogin/login.xhtml?app=NEMESIS&url=https%3A%2F%2Fnemesis.gva.es%2Fnemesis';
 var NEM = /^https:\/\//.test(NEMESIS_URL) ? NEMESIS_URL : '';
 /* Acceso gratuito para todos hasta final de 2026; desde 2027, 9,99 € por todo el año 2027. */
 var GRATIS_FIN = new Date('2027-01-01T00:00:00+01:00');
@@ -883,7 +883,10 @@ function mapFit(W, H, pts) {
   if (ll.length === 1) z = Math.min(z, 10);
   MP.z = z; MP.c = [unY((mercY(a, z) + mercY(b, z)) / 2, z), unX((mercX(c, z) + mercX(d, z)) / 2, z)];
 }
+function mapaCerrado() { return !!(ACC && !(ACC.loggedIn && ACC.loggedIn())); } // con la base de datos conectada, el mapa es solo para cuentas registradas
 function viewMapa() {
+  if (mapaCerrado()) return '<section class="card" id="mapa-cerrado"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Mira dónde salen las ofertas de la semana, cerca de ti y por cuerpo.</p></div><span class="pill">Solo con cuenta</span></div>' +
+    '<p style="margin-top:12px">Para ver el mapa tienes que estar registrado. Es gratis hasta el 31 de diciembre de 2026.</p><div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="mp-up">Crear cuenta gratis</button><button class="btn" type="button" id="mp-in">Ya tengo cuenta · Entrar</button></div></section>';
   var pts = mapPoints(), tot = pts.reduce(function (s, p) { return s + p.n; }, 0);
   var sel = function (k, label, arr) { return '<div class="field"><label for="mf-' + k + '">' + label + '</label><select class="input" id="mf-' + k + '" data-mf="' + k + '">' + arr.map(function (x) { return '<option value="' + x[0] + '"' + (String(MP[k]) === String(x[0]) ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>'; };
   var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
@@ -907,6 +910,11 @@ function viewMapa() {
 }
 function afterMapa() {
   var v = $('#view');
+  if (mapaCerrado()) {
+    var go = function (m) { A.mode = m; A.view = 'main'; location.hash = '#cuenta'; };
+    $('#mp-up').addEventListener('click', function () { go('up'); }); $('#mp-in').addEventListener('click', function () { go('in'); });
+    return;
+  }
   $$('select[data-mf]', v).forEach(function (s) {
     s.addEventListener('change', function () {
       var k = s.dataset.mf, x = s.value; MP[k] = (k === 'cu' || k === 'tipo') ? (x === 'all' ? 'all' : +x) : (k === 'rad' ? +x : x);
