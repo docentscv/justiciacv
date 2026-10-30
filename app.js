@@ -378,7 +378,7 @@ function viewCuenta() {
     '<div class="card"><p class="eyebrow">Precio previsto</p><div class="price-n" style="margin-top:6px"><b class="num">7 días</b> gratis</div>' +
     '<p style="margin-top:8px">Después, <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
     '<p class="hint" style="margin-top:8px">Ver ofertas, zonas y datos, y calcular tu posición a mano, sigue siendo gratis.</p></div></section>' +
-    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Escribes tu nombre</b>Como aparece en el listado oficial.</div><div><b>2. Confirmas tu fila</b>La web te muestra tu cuerpo, grupo y puesto, y confirmas que eres tú.</div><div><b>3. Empiezas la prueba</b>Siete días con todo el área personal, sin pagar.</div></div></section>' +
+    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Escribes tu nombre y eliges tu población</b>El nombre, como aparece en el listado oficial.</div><div><b>2. Confirmas tu fila</b>La web te muestra tu cuerpo, grupo y puesto, y confirmas que eres tú.</div><div><b>3. Empiezas la prueba</b>Siete días con todo el área personal, sin pagar.</div></div></section>' +
     '<section class="card" id="demo"><div class="sec-h"><div><h2>Así se verá tu cuenta</h2><p class="hint">Persona ficticia. Cambia cuerpo, grupo y puesto para probarlo: las cifras salen de los listados reales de la última semana.</p></div><span class="pill warn">Datos de ejemplo</span></div>' +
     '<div class="grid2" style="gap:12px;margin-top:14px"><div class="field"><label for="c-cu">Cuerpo</label><select class="input" id="c-cu">' + CUKEYS.map(function (k) { return '<option value="' + k[0] + '"' + (P.cu === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label for="c-g">Grupo</label><select class="input" id="c-g">' + gs.map(function (g) { return '<option value="' + g + '"' + (+P.g === g ? ' selected' : '') + '>Grupo ' + g + '</option>'; }).join('') + '</select></div>' +
@@ -580,7 +580,8 @@ function accAlta(flash) {
   var lw = weeks.filter(function (w) { return w.filas != null; }).pop();
   r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Encuentra tu fila</h2><p class="hint">Escribe tu nombre y apellidos como salen en el listado oficial. Se busca en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '.</p></div></div>' +
     msg(flash) +
-    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div><div id="f-msg"></div><button class="btn primary" type="submit">Buscar mi fila</button></form>' +
+    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' +
+    '<div class="field"><label for="n-home">Tu población</label><select class="input" id="n-home">' + D.pobs.map(function (p, i) { return { n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); }).map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select><p class="hint" style="margin-top:6px">Donde vives o desde donde te mueves. Se usa para ordenar las ofertas por distancia. Podrás cambiarla cuando quieras.</p></div><div id="f-msg"></div><button class="btn primary" type="submit">Buscar mi fila</button></form>' +
     '<div id="n-out" style="margin-top:14px;display:grid;gap:10px"></div></section>' +
     '<section class="callout"><b>Tu nombre no se guarda.</b> Se convierte en un código que no se puede deshacer y se descarta. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>' +
     accCard(true);
@@ -597,7 +598,11 @@ function accAlta(flash) {
       $$('button[data-ok]', $('#n-out')).forEach(function (b) {
         b.addEventListener('click', function () {
           var x = rows[+b.dataset.ok]; b.disabled = true; b.textContent = 'Un momento…';
-          ACC.confirmar(A.nombre, x.cuerpo, x.orden).then(function () { A.nombre = ''; accLoad({ ok: 'Listo. Empieza tu prueba gratuita de 7 días.' }); },
+          ACC.confirmar(A.nombre, x.cuerpo, x.orden).then(function () {
+            A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
+            var id = pidOfName(C.home), g = id != null ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
+            return g['catch'](function () {}).then(function () { accLoad({ ok: 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
+          },
             function (e) { b.disabled = false; b.textContent = 'Soy yo'; $('#f-msg').innerHTML = msg({ err: e.message }); });
         });
       });
@@ -659,7 +664,8 @@ function drawDash(head) {
   var sel = rows.length > 1 ? '<div class="row" role="group" aria-label="Cuerpo" style="margin-bottom:12px">' + rows.map(function (x, i) { return '<button class="chip" type="button" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + esc(cuNombre(x.cuerpo)) + '</button>'; }).join('') + '</div>' : '';
   var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
   var hist = A.hist.filter(function (x) { return x.cuerpo === cur.cuerpo; });
-  r.innerHTML = head.replace('</section>', '') + sel + '<p style="margin-top:6px"><span class="pill' + (cur.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[cur.estado] || cur.estado) + '</span> <span class="muted num">Convocatoria ' + cur.convocatoria + '/2026</span></p></section>' +
+  var resumen = '<div class="mytop"><b>' + esc(cuNombre(cur.cuerpo)) + ' · grupo ' + cur.grupo + '</b><span>Puesto <b class="num">' + cur.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + cur.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill">' + esc(C.home) + '</span></div>';
+  r.innerHTML = head.replace('</section>', '') + sel + resumen + '<p style="margin-top:6px"><span class="pill' + (cur.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[cur.estado] || cur.estado) + '</span> <span class="muted num">Convocatoria ' + cur.convocatoria + '/2026</span></p></section>' +
     '<section class="card"><div class="field" style="max-width:340px"><label for="c-home">Mi población</label><select class="input" id="c-home">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div><p class="hint" style="margin-top:8px">Se usa para ordenar las ofertas por distancia. Se guarda en tu cuenta.</p></section>' +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
