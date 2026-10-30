@@ -167,7 +167,7 @@ function viewInicio() {
   return '<section class="hero"><div class="hero-t"><p class="eyebrow">Justicia · Comunitat Valenciana</p>' +
     '<h1>Qué hay esta semana y hasta dónde llega la lista</h1>' +
     '<p class="lead">Ofertas y adjudicaciones reales de los listados oficiales, ordenadas para consultarlas en un minuto. Sin nombres ni DNI.</p>' +
-    '<div class="row"><a class="btn primary" href="#ofertas">Ver las ofertas de la semana</a><a class="btn" href="#mi-posicion">Calcular mi posición</a></div>' +
+    '<div class="row"><a class="btn primary" href="#ofertas">Ver las ofertas de la semana</a><a class="btn" href="#cuenta">Ver mi puesto</a></div>' +
     '<div><div class="chart" id="pulse" style="max-width:520px"></div><p class="hint">Ofertas de cada una de las ' + weeks.length + ' semanas con datos</p></div></div>' +
     '<div class="card"><div class="week-h"><h2>Convocatoria ' + w.c + '/2026</h2><span class="muted num">' + fmtD(w.f) + '</span></div>' +
     '<p class="hint">La última publicada con adjudicación</p>' +
@@ -377,7 +377,7 @@ function viewCuenta() {
     '<div class="row"><button class="btn primary" type="button" disabled>Crear cuenta · próximamente</button><button class="btn" id="goDemo" type="button">Ver cómo será</button></div></div>' +
     '<div class="card"><p class="eyebrow">Precio previsto</p><div class="price-n" style="margin-top:6px"><b class="num">7 días</b> gratis</div>' +
     '<p style="margin-top:8px">Después, <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
-    '<p class="hint" style="margin-top:8px">Ver ofertas, zonas y datos, y calcular tu posición a mano, sigue siendo gratis.</p></div></section>' +
+    '<p class="hint" style="margin-top:8px">Ver ofertas, zonas y datos sigue siendo gratis.</p></div></section>' +
     '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Escribes tu nombre y eliges tu población</b>El nombre, como aparece en el listado oficial.</div><div><b>2. Confirmas tu fila</b>La web te muestra tu cuerpo, grupo y puesto, y confirmas que eres tú.</div><div><b>3. Empiezas la prueba</b>Siete días con todo el área personal, sin pagar.</div></div></section>' +
     '<section class="card" id="demo"><div class="sec-h"><div><h2>Así se verá tu cuenta</h2><p class="hint">Persona ficticia. Cambia cuerpo, grupo y puesto para probarlo: las cifras salen de los listados reales de la última semana.</p></div><span class="pill warn">Datos de ejemplo</span></div>' +
     '<div class="grid2" style="gap:12px;margin-top:14px"><div class="field"><label for="c-cu">Cuerpo</label><select class="input" id="c-cu">' + CUKEYS.map(function (k) { return '<option value="' + k[0] + '"' + (P.cu === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></div>' +
@@ -482,7 +482,7 @@ onProfile = saveProfileSoon;
 function pricing() {
   return '<div class="card"><p class="eyebrow">Precio</p><div class="price-n" style="margin-top:6px"><b class="num">7 días</b> gratis</div>' +
     '<p style="margin-top:8px">Después, <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
-    '<p class="hint" style="margin-top:8px">La prueba empieza cuando confirmas tu fila. Ver ofertas, zonas y datos, y calcular tu posición a mano, sigue siendo gratis.</p></div>';
+    '<p class="hint" style="margin-top:8px">La prueba empieza cuando confirmas tu fila. Ver ofertas, zonas y datos sigue siendo gratis.</p></div>';
 }
 function accFatal(e) {
   var r = accRoot(); if (!r) return;
@@ -691,7 +691,7 @@ function accPaywall(head) {
   var r = accRoot(); if (!r) return;
   r.innerHTML = head + '<section class="card"><h2>Tu prueba gratuita ha terminado</h2><p style="margin-top:8px">Para seguir viendo tu posición, quién tienes delante y las ofertas cerca de ti, el área personal cuesta <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
     '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" disabled>Pagar 9,99 € · próximamente</button></div>' +
-    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas, los datos y el cálculo manual de tu posición.</p></section>';
+    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas y los datos.</p></section>';
 }
 function drawDash(head) {
   var r = accRoot(); if (!r) return;
@@ -848,7 +848,7 @@ function afterGuia() {
 }
 
 /* ---------- router ---------- */
-var ROUTES = { cuenta: [viewCuenta, afterCuenta], inicio: [viewInicio, afterInicio], ofertas: [viewOfertas, afterOfertas], zonas: [viewZonas, afterZonas], 'mi-posicion': [viewPos, afterPos], datos: [viewDatos, afterDatos], guia: [viewGuia, afterGuia] };
+var ROUTES = { cuenta: [viewCuenta, afterCuenta], inicio: [viewInicio, afterInicio], ofertas: [viewOfertas, afterOfertas], zonas: [viewZonas, afterZonas], datos: [viewDatos, afterDatos], guia: [viewGuia, afterGuia] };
 function render() {
   var h = (location.hash || '#inicio').slice(1); if (!ROUTES[h]) h = 'inicio';
   hideTip(); stopSpeech(); redraws.length = 0;
