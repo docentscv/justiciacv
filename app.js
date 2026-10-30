@@ -153,7 +153,7 @@ function pulseChart(host) {
 function nextConv() {
   var d = new Date(last.f + 'T12:00:00'), add = (5 - d.getDay() + 7) % 7 || 7; // próximo viernes
   var pub = addDays(last.f, add), lun = new Date(pub); lun.setDate(lun.getDate() + 3); var mar = new Date(pub); mar.setDate(mar.getDate() + 4);
-  var now = new Date(), dias = Math.round((new Date(pub.getFullYear(), pub.getMonth(), pub.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000); // días naturales
+  var now = new Date(), dias = Math.round((new Date(mar.getFullYear(), mar.getMonth(), mar.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000); // días naturales hasta el martes de la convocatoria
   return { n: last.c + 1, pub: pub, lun: lun, mar: mar, dias: dias };
 }
 function viewInicio() {
@@ -175,7 +175,7 @@ function viewInicio() {
     '<div class="seg" aria-hidden="true">' + segs + '</div>' +
     '<div class="legend" style="margin-top:10px"><span><i class="dot d-vac"></i>Vacantes ' + w.v + '</span><span><i class="dot d-sus"></i>Sustituciones ' + w.s + '</span><span><i class="dot d-ref"></i>Refuerzos ' + w.r + '</span></div>' +
     '<div style="margin-top:14px"><a class="btn small" href="#ofertas">Ver las ' + w.of + ' ofertas</a></div></div></section>' +
-    '<section class="grid2"><div class="card"><p class="eyebrow">Próxima convocatoria (estimación)</p><div class="next-d" style="margin-top:6px">' + nx.n + '/2026 · ' + fmtDL(nx.pub) + '</div><p class="hint">' + cd + '. No hay calendario oficial por adelantado: la fecha sale del ritmo de las últimas semanas.</p>' +
+    '<section class="grid2"><div class="card"><p class="eyebrow">Próxima convocatoria (estimación)</p><div class="next-d" style="margin-top:6px">' + nx.n + '/2026 · ' + fmtDL(nx.mar) + '</div><p class="hint">' + cd + '. No hay calendario oficial por adelantado: la fecha sale del ritmo de las últimas semanas.</p>' +
     '<div class="cycle"><div><b>' + fmtDL(nx.pub).split(' ')[0] + ' por la tarde</b>Listado provisional de ofertas</div><div><b>' + fmtDL(nx.lun).split(' ')[0] + ' 10:00 a ' + fmtDL(nx.mar).split(' ')[0] + ' 9:59</b>Peticiones en Némesis con certificado digital</div><div><b>' + fmtDL(nx.mar).split(' ')[0] + '</b>Adjudicación por orden de lista</div></div></div>' +
     '<div class="card"><div class="sec-h"><h2>Tus zonas</h2><a class="btn small" href="#zonas">Elegir zonas</a></div>' + mineHtml + '</div></section>';
 }
