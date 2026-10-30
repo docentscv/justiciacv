@@ -465,7 +465,7 @@ function bindCuenta(v) {
 var onProfile = function () {};
 
 /* ---- Cuenta real (con Supabase) ---- */
-var A = { mode: 'in', me: null, pos: null, hist: null, sel: 0, nombre: '' };
+var A = { mode: 'in', me: null, pos: null, hist: null, sel: 0, nombre: '', view: 'main', admin: null };
 var ESTADO = { no_pide: 'No pides ofertas esta semana', pide_sin_plaza: 'Has pedido ofertas esta semana y no te ha tocado ninguna', adjudicada: 'Te han adjudicado una oferta esta semana', adjudicada_otro_cuerpo: 'Tenías ya una adjudicación en otro cuerpo' };
 function cuNombre(c) { var k = CUKEYS.filter(function (x) { return x[0] === c; })[0]; return k ? k[1] : c; }
 function accRoot() { return $('#acc-root'); }
@@ -555,8 +555,12 @@ function accRecovery() {
 function accLoad(flash) {
   var r = accRoot(); if (!r) return;
   r.innerHTML = '<div class="card empty" role="status">Cargando tu cuenta…</div>';
-  ACC.me().then(function (me) {
-    A.me = me; applyMe(me);
+  syncAcct();
+  Promise.all([ACC.me(), ACC.esAdmin()['catch'](function () { return false; })]).then(function (res) {
+    var me = res[0]; A.me = me; A.admin = !!res[1]; applyMe(me);
+    if (A.view === 'ajustes') return accAjustes(flash);
+    if (A.view === 'test' && A.admin) return accAlta(flash, { test: true });
+    A.view = 'main';
     if (!me.listas.length) return accAlta(flash);
     accDash(flash);
   }, accFatal);
@@ -574,21 +578,19 @@ function applyMe(me) {
   }
 }
 
-/* paso 1 y 2 del alta: buscar las filas y confirmarlas (se puede estar en varios cuerpos a la vez) */
+/* paso 1 y 2 del alta: buscar las filas y confirmarlas (se puede estar en varios cuerpos a la vez).
+   opts.test = modo prueba de administrador: sustituye el nombre, las filas y la población de la cuenta. */
 function accAlta(flash, opts) {
   var r = accRoot(); if (!r) return;
-  var add = !!(opts && opts.add);
+  var test = !!(opts && opts.test);
   var lw = weeks.filter(function (w) { return w.filas != null; }).pop();
-  var homesHtml = add ? '' : '<div class="field"><label for="n-home">Tu población</label><select class="input" id="n-home">' + D.pobs.map(function (p) { return { n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); }).map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select><p class="hint" style="margin-top:6px">Donde vives o desde donde te mueves. Se usa para ordenar las ofertas por distancia. Podrás cambiarla cuando quieras.</p></div>';
-  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>' + (add ? 'Buscar otra vez tu nombre' : 'Encuentra tu fila') + '</h2><p class="hint">Escribe tu nombre y apellidos como salen en el listado oficial. Se busca en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '.</p></div></div>' +
+  var homesHtml = '<div class="field"><label for="n-home">' + (test ? 'Población' : 'Tu población') + '</label><select class="input" id="n-home">' + D.pobs.map(function (p) { return { n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); }).map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select><p class="hint" style="margin-top:6px">' + (test ? 'Solo para pruebas.' : 'Donde vives o desde donde te mueves. Se usa para ordenar las ofertas por distancia. Se elige una sola vez: después solo la puede cambiar un administrador.') + '</p></div>';
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>' + (test ? 'Modo prueba' : 'Encuentra tu fila') + '</h2><p class="hint">' + (test ? 'Solo administradores. Escribe el nombre de otra persona del listado: sustituye el nombre, las filas y la población de tu cuenta para que puedas probar la web como si fueras esa persona.' : 'Escribe tu nombre y apellidos como salen en el listado oficial. Se busca en el último listado completo') + (lw && !test ? ' (convocatoria ' + lw.c + '/2026)' : '') + (test ? '' : '.') + '</p></div></div>' +
     msg(flash) +
-    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' + homesHtml + '<div id="f-msg"></div><div class="row"><button class="btn primary" type="submit">Buscar mi fila</button>' + (add ? '<button class="btn" type="button" id="n-cancel">Cancelar</button>' : '') + '</div></form>' +
+    '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' + homesHtml + '<div id="f-msg"></div><div class="row"><button class="btn primary" type="submit">Buscar mi fila</button>' + (test ? '<button class="btn" type="button" id="n-cancel">Cancelar</button>' : '') + '</div></form>' +
     '<div id="n-out" style="margin-top:14px;display:grid;gap:10px"></div></section>' +
-    '<section class="callout"><b>Tu nombre no se guarda en nuestros servidores.</b> Se convierte en un código que no se puede deshacer y se descarta; solo lo recuerda tu navegador, para mostrarlo en tu pantalla. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>' +
-    accCard(true);
-  bindAccCard();
-  if (add) $('#n-cancel').addEventListener('click', function () { accLoad(); });
-  var tienes = {}; if (A.me && A.me.listas) A.me.listas.forEach(function (l) { tienes[l.cuerpo] = 1; });
+    '<section class="callout"><b>Tu nombre no se guarda en nuestros servidores.</b> Se convierte en un código que no se puede deshacer y se descarta; solo lo recuerda tu navegador, para mostrarlo en tu pantalla. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>';
+  if (test) $('#n-cancel').addEventListener('click', function () { A.view = 'main'; accLoad(); });
   submitForm($('#n-f'), function () {
     var nombre = $('#n-nombre').value.trim(); A.nombre = nombre; $('#n-out').innerHTML = '';
     if (nombre.length < 6) throw new Error('Escribe nombre y apellidos.');
@@ -596,21 +598,23 @@ function accAlta(flash, opts) {
       $('#f-msg').innerHTML = '';
       if (!rows.length) { $('#n-out').innerHTML = '<div class="msg">No hemos encontrado ese nombre en el último listado. Prueba con los dos apellidos, o revisa cómo sale escrito en el PDF. Si tu cuerpo no tuvo ofertas esa semana, no aparece en el listado.</div>'; return; }
       $('#n-out').innerHTML = '<p class="hint">' + (rows.length > 1 ? 'Esto es lo que hemos encontrado. Puedes estar en varios cuerpos a la vez: deja marcadas todas las filas que sean tuyas.' : 'Esto es lo que hemos encontrado. Confirma que eres tú:') + '</p>' + rows.map(function (x, i) {
-        var ya = !!tienes[x.cuerpo];
-        return '<label class="cand"><span class="candck"><input type="checkbox" data-ck="' + i + '" checked' + (ya ? ' disabled' : '') + '><span><b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span class="muted">Puesto ' + x.posicion_en_grupo + ' de ' + x.personas_en_grupo + ' en tu grupo (convocatoria ' + x.convocatoria + '/2026)</span></span></span>' + (ya ? '<span class="pill ok">Ya la tienes</span>' : '') + '</label>';
+        return '<label class="cand"><span class="candck"><input type="checkbox" data-ck="' + i + '" checked><span><b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span class="muted">Puesto ' + x.posicion_en_grupo + ' de ' + x.personas_en_grupo + ' en tu grupo (convocatoria ' + x.convocatoria + '/2026)</span></span></span></label>';
       }).join('') + '<div class="row"><button class="btn primary" type="button" id="n-ok">' + (rows.length > 1 ? 'Soy yo en las filas marcadas' : 'Soy yo') + '</button></div>';
-      var cks = $$('input[data-ck]', $('#n-out')), okb = $('#n-ok');
-      function marcadas() { return rows.filter(function (x, i) { return cks[i].checked && !cks[i].disabled; }); }
+      var cks = $$('input[data-ck]', $('#n-out')), okb = $('#n-ok'), lbl = okb.textContent;
+      function marcadas() { return rows.filter(function (x, i) { return cks[i].checked; }); }
       function refresca() { okb.disabled = !marcadas().length; }
       cks.forEach(function (c) { c.addEventListener('change', refresca); }); refresca();
       okb.addEventListener('click', function () {
         var elegidas = marcadas(); if (!elegidas.length) return;
         okb.disabled = true; okb.textContent = 'Un momento…';
-        elegidas.reduce(function (p, x) { return p.then(function () { return ACC.confirmar(A.nombre, x.cuerpo, x.orden); }); }, Promise.resolve()).then(function () {
-          guardaNombre(A.nombre); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
-          var id = pidOfName(C.home), g = (!add && id != null) ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
-          return g['catch'](function () {}).then(function () { accLoad({ ok: add ? 'Listo. Hemos añadido tus filas.' : 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
-        }, function (e) { okb.disabled = false; okb.textContent = rows.length > 1 ? 'Soy yo en las filas marcadas' : 'Soy yo'; $('#f-msg').innerHTML = msg({ err: e.message }); });
+        var nombreTecleado = A.nombre;
+        (test ? ACC.adminReiniciar() : Promise.resolve()).then(function () {
+          return elegidas.reduce(function (p, x) { return p.then(function () { return ACC.confirmar(nombreTecleado, x.cuerpo, x.orden); }); }, Promise.resolve());
+        }).then(function () {
+          guardaNombre(nombreTecleado); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
+          var id = pidOfName(C.home), g = id != null ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
+          return g['catch'](function () {}).then(function () { A.view = 'main'; accLoad({ ok: test ? 'Listo. Tu cuenta es ahora la de la persona que has buscado (modo prueba).' : 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
+        }, function (e) { okb.disabled = false; okb.textContent = lbl; $('#f-msg').innerHTML = msg({ err: e.message }); });
       });
     });
   });
@@ -633,16 +637,36 @@ function accCard(withDelete) {
     '<div class="row"><input class="input" id="del-t" type="text" autocomplete="off" aria-label="Escribe BORRAR" style="max-width:180px"><button class="btn small danger" type="button" id="del-ok" disabled>Borrar para siempre</button></div><div id="del-msg"></div></div></section>';
 }
 function bindAccCard() {
-  var o = $('#a-out'); if (o) o.addEventListener('click', function () { ACC.signOut().then(function () { A.me = null; A.mode = 'in'; accAuth(); }); });
+  var o = $('#a-out'); if (o) o.addEventListener('click', function () { ACC.signOut().then(function () { A.me = null; A.admin = null; A.view = 'main'; A.mode = 'in'; syncAcct(); accAuth(); }); });
   var d = $('#a-del'); if (!d) return;
   var box = $('#del-box'); box.hidden = true; box.style.display = '';
   d.addEventListener('click', function () { box.hidden = !box.hidden; if (!box.hidden) $('#del-t').focus(); });
   $('#del-t').addEventListener('input', function (e) { $('#del-ok').disabled = e.target.value.trim().toUpperCase() !== 'BORRAR'; });
   $('#del-ok').addEventListener('click', function () {
     var b = this; b.disabled = true; b.textContent = 'Borrando…';
-    ACC.borrar().then(function () { olvidaNombre(); A.me = null; A.mode = 'in'; accAuth({ ok: 'Tu cuenta y tus datos se han borrado.' }); },
+    ACC.borrar().then(function () { olvidaNombre(); A.admin = null; A.view = 'main'; syncAcct(); A.me = null; A.mode = 'in'; accAuth({ ok: 'Tu cuenta y tus datos se han borrado.' }); },
       function (e) { b.disabled = false; b.textContent = 'Borrar para siempre'; $('#del-msg').innerHTML = msg({ err: e.message }); });
   });
+}
+function accAjustes(flash) {
+  var r = accRoot(); if (!r) return;
+  var nom = nombreGuardado();
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Ajustes</h2><p class="hint">' + esc(ACC.email()) + (A.admin ? ' · <b>Administrador</b>' : '') + '</p></div><button class="btn small" type="button" id="aj-back">← Volver a mi puesto</button></div>' + msg(flash) + '</section>' +
+    '<section class="card"><h3>Mi nombre en este dispositivo</h3>' + (nom
+      ? '<p style="margin-top:8px"><b>' + esc(bonito(nom)) + '</b></p><p class="hint" style="margin-top:6px">Solo se guarda en este navegador, nunca en nuestros servidores. ' + (A.admin ? 'Para cambiarlo, usa el modo prueba de más abajo.' : 'El nombre de la cuenta solo lo puede cambiar un administrador.') + '</p>'
+      : '<p class="hint" style="margin-top:6px">Si quieres ver tu nombre arriba en este dispositivo, escríbelo aquí. Solo se guarda en este navegador, nunca en nuestros servidores.</p><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
+    '<section class="card"><h3>Población</h3><p style="margin-top:8px"><b>' + esc(C.home) + '</b></p><p class="hint" style="margin-top:6px">Se elige una sola vez, al registrarte. ' + (A.admin ? 'Como administrador puedes cambiarla desde tu pantalla o en el modo prueba.' : 'Solo la puede cambiar un administrador.') + '</p></section>' +
+    (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
+    accCard(true);
+  bindAccCard();
+  $('#aj-back').addEventListener('click', function () { A.view = 'main'; accLoad(); });
+  var t = $('#aj-test'); if (t) t.addEventListener('click', function () { A.view = 'test'; accLoad(); });
+  var ok = $('#nom-ok');
+  if (ok) {
+    var inp = $('#nom-in');
+    var guardar = function () { if (inp.value.trim().length < 3) return; guardaNombre(inp.value); accAjustes({ ok: 'Nombre guardado en este dispositivo.' }); };
+    ok.addEventListener('click', guardar); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
+  }
 }
 function subState() {
   var s = A.me && A.me.suscripcion, now = new Date();
@@ -657,7 +681,7 @@ function accDash(flash) {
   var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Prueba terminada</span>';
   var nom = nombreGuardado();
   var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + '</p></div>' + chip + '</div>' +
-    (st.ok && !nom ? '<p class="hint" id="nom-box" style="margin-top:8px"><button class="linkbtn" type="button" id="b-nom">Mostrar mi nombre aquí</button> (se guarda solo en este dispositivo)</p>' : '') + msg(flash) + '</section>';
+    msg(flash) + '</section>';
   if (!st.ok) return accPaywall(head);
   r.innerHTML = head + '<div class="card empty" role="status">Cargando tu posición…</div>';
   Promise.all([ACC.posicion(), ACC.historial()]).then(function (res) { A.pos = res[0]; A.hist = res[1]; if (A.sel >= A.pos.length) A.sel = 0; drawDash(head); },
@@ -667,15 +691,14 @@ function accPaywall(head) {
   var r = accRoot(); if (!r) return;
   r.innerHTML = head + '<section class="card"><h2>Tu prueba gratuita ha terminado</h2><p style="margin-top:8px">Para seguir viendo tu posición, quién tienes delante y las ofertas cerca de ti, el área personal cuesta <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
     '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" disabled>Pagar 9,99 € · próximamente</button></div>' +
-    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas, los datos y el cálculo manual de tu posición.</p></section>' + accCard(true);
-  bindAccCard();
+    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas, los datos y el cálculo manual de tu posición.</p></section>';
 }
 function drawDash(head) {
   var r = accRoot(); if (!r) return;
   var rows = A.pos, lw = weeks.filter(function (w) { return w.filas != null; }).pop();
   if (!rows.length) {
-    r.innerHTML = head + '<section class="card"><h3>No aparecemos en el último listado</h3><p style="margin-top:8px">Tu fila guardada no está en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '. Puede ser que tu cuerpo no tuviera ofertas esa semana, ya que el listado solo incluye los cuerpos con ofertas, o que hayas salido de la lista.</p></section>' + accCard(true);
-    return bindAccCard();
+    r.innerHTML = head + '<section class="card"><h3>No aparecemos en el último listado</h3><p style="margin-top:8px">Tu fila guardada no está en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '. Puede ser que tu cuerpo no tuviera ofertas esa semana, ya que el listado solo incluye los cuerpos con ofertas, o que hayas salido de la lista.</p></section>';
+    return;
   }
   var cur = rows[A.sel] || rows[0], S = { cu: cur.cuerpo, g: cur.grupo, pos: cur.posicion_en_grupo };
   var sel = '';
@@ -684,7 +707,7 @@ function drawDash(head) {
   var resumen = rows.map(function (x, i) {
     var inner = '<b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span>Puesto <b class="num">' + x.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + x.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill' + (x.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[x.estado] || x.estado) + '</span>';
     return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
-  }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '/2026</span> · Población: <b>' + esc(C.home) + '</b> <button class="linkbtn" type="button" id="b-pob">Cambiar</button></p>';
+  }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '</span> · Población: <b>' + esc(C.home) + '</b>' + (A.admin ? ' <button class="linkbtn" type="button" id="b-pob">Cambiar</button>' : '') + '</p>';
   r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
@@ -694,7 +717,7 @@ function drawDash(head) {
     '<label class="alrt"><input type="checkbox" checked disabled> Ofertas nuevas en mis poblaciones y mi cuerpo, cuando se publica el listado del viernes.</label>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label></section>' +
     '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
-    accCard(true);
+    '';
   $('#b-add').addEventListener('click', function () {
     var b = this; b.disabled = true; b.textContent = 'Buscando…'; $('#add-msg').innerHTML = '';
     ACC.anadirCuerpos().then(function (rows) {
@@ -704,17 +727,11 @@ function drawDash(head) {
     }, function (e) { b.disabled = false; b.textContent = 'Buscar mis otros cuerpos'; $('#add-msg').innerHTML = msg({ err: e.message }); });
   });
   $$('button[data-sel]', r).forEach(function (b) { b.addEventListener('click', function () { A.sel = +b.dataset.sel; drawDash(head); }); });
-  $('#b-pob').addEventListener('click', function () {
+  var bp = $('#b-pob');
+  if (bp) bp.addEventListener('click', function () {
     $('#pob-box').innerHTML = '<label class="muted" for="c-home">Población:</label> <select class="input" id="c-home" style="max-width:260px;display:inline-block;margin-left:6px">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select>';
     var sl = $('#c-home'); sl.focus();
     sl.addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); drawDash(head); });
-  });
-  var bn = $('#b-nom');
-  if (bn) bn.addEventListener('click', function () {
-    $('#nom-box').innerHTML = '<span class="row"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></span><br><span class="hint">Solo se guarda en este navegador. Nuestro servidor no lo recibe.</span>';
-    var inp = $('#nom-in'); inp.focus();
-    function ok() { if (inp.value.trim().length < 3) return; guardaNombre(inp.value); accDash(); }
-    $('#nom-ok').addEventListener('click', ok); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
   });
   bindTables(r); bindAccCard();
   renderCuenta($('#acc-out'), S);
@@ -836,6 +853,7 @@ function render() {
   var h = (location.hash || '#inicio').slice(1); if (!ROUTES[h]) h = 'inicio';
   hideTip(); stopSpeech(); redraws.length = 0;
   $('#view').innerHTML = (NOTE ? '<div class="callout note-top" role="status">' + esc(NOTE) + '</div>' : '') + ROUTES[h][0]();
+  syncAcct();
   var ac = $('#acct'); if (h === 'cuenta') ac.setAttribute('aria-current', 'page'); else ac.removeAttribute('aria-current');
   $$('.tab').forEach(function (t) { if (t.dataset.r === h) t.setAttribute('aria-current', 'page'); else t.removeAttribute('aria-current'); });
   ROUTES[h][1]();
@@ -844,6 +862,48 @@ var lastRoute = '';
 window.addEventListener('hashchange', function () { render(); if ((location.hash || '#inicio') !== lastRoute) window.scrollTo(0, 0); lastRoute = location.hash || '#inicio'; });
 window.addEventListener('resize', debounce(function () { redraws.forEach(function (f) { f(); }); }, 120));
 window.addEventListener('pagehide', stopSpeech);
+
+/* menú desplegable de Mi cuenta (solo con sesión iniciada; sin sesión es un enlace a la pantalla de entrada) */
+var acctEl = $('#acct'), menuEl = $('#acctmenu');
+function syncAcct() {
+  var on = !!(ACC && ACC.loggedIn && ACC.loggedIn());
+  if (on) { acctEl.setAttribute('aria-haspopup', 'menu'); if (!acctEl.hasAttribute('aria-expanded')) acctEl.setAttribute('aria-expanded', 'false'); }
+  else { acctEl.removeAttribute('aria-haspopup'); acctEl.removeAttribute('aria-expanded'); menuEl.hidden = true; }
+}
+function closeMenu() { menuEl.hidden = true; if (acctEl.hasAttribute('aria-expanded')) acctEl.setAttribute('aria-expanded', 'false'); }
+function goCuenta(view) { A.view = view; if ((location.hash || '') !== '#cuenta') location.hash = '#cuenta'; else accLoad(); }
+function openMenu() {
+  var nom = nombreGuardado();
+  Promise.resolve(A.admin == null ? ACC.esAdmin().then(function (v) { A.admin = !!v; return A.admin; }, function () { A.admin = false; return false; }) : A.admin).then(function (adm) {
+    menuEl.innerHTML = '<div class="who">' + (nom ? '<b>' + esc(bonito(nom)) + '</b>' : '') + '<span class="muted">' + esc(ACC.email()) + '</span>' + (adm ? '<span><span class="pill ok">Administrador</span></span>' : '') + '</div>' +
+      '<button type="button" role="menuitem" data-m="main">Mi puesto</button>' +
+      '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
+      (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
+      '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
+    menuEl.hidden = false; acctEl.setAttribute('aria-expanded', 'true');
+    var f = $('[role=menuitem]', menuEl); if (f) f.focus();
+  });
+}
+acctEl.addEventListener('click', function (ev) {
+  if (!(ACC && ACC.loggedIn && ACC.loggedIn())) return;
+  ev.preventDefault();
+  if (!menuEl.hidden) closeMenu(); else openMenu();
+});
+menuEl.addEventListener('click', function (ev) {
+  var b = ev.target.closest('[data-m]');
+  if (!b) { if (ev.target.closest('a')) closeMenu(); return; }
+  closeMenu(); var m = b.dataset.m;
+  if (m === 'out') ACC.signOut().then(function () { A.me = null; A.admin = null; A.view = 'main'; A.mode = 'in'; syncAcct(); if ((location.hash || '') !== '#cuenta') location.hash = '#cuenta'; else accAuth(); });
+  else goCuenta(m);
+});
+menuEl.addEventListener('keydown', function (ev) {
+  var items = $$('[role=menuitem]', menuEl), i = items.indexOf(document.activeElement);
+  if (ev.key === 'ArrowDown') { ev.preventDefault(); items[(i + 1) % items.length].focus(); }
+  else if (ev.key === 'ArrowUp') { ev.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+});
+document.addEventListener('click', function (ev) { if (!menuEl.hidden && !ev.target.closest('#acctwrap')) closeMenu(); });
+document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !menuEl.hidden) { closeMenu(); acctEl.focus(); } });
+window.addEventListener('hashchange', closeMenu);
 
 /* tema */
 function applyTheme(t) { if (t === 'system') document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme', t); }

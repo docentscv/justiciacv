@@ -183,6 +183,7 @@
     },
     /* ----- administración (solo funciona si tu cuenta está en la tabla admins; si no, el servidor lo rechaza) ----- */
     init: function () { loadSession(); hashDone = ENABLED ? readHash() : Promise.resolve(); return hashDone; },
+    adminReiniciar: function () { return authed('POST', '/rest/v1/rpc/admin_reiniciar_mi_cuenta', { json: {} }); },
     esAdmin: function () { return authed('POST', '/rest/v1/rpc/soy_admin', { json: {} }).then(function (r) { return r === true; }); },
     adminBase: function () {
       return Promise.all([
