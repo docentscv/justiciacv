@@ -153,7 +153,7 @@ function pulseChart(host) {
 function nextConv() {
   var d = new Date(last.f + 'T12:00:00'), add = (5 - d.getDay() + 7) % 7 || 7; // próximo viernes
   var pub = addDays(last.f, add), lun = new Date(pub); lun.setDate(lun.getDate() + 3); var mar = new Date(pub); mar.setDate(mar.getDate() + 4);
-  var now = new Date(), dias = Math.ceil((pub - now) / 86400000);
+  var now = new Date(), dias = Math.round((new Date(pub.getFullYear(), pub.getMonth(), pub.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000); // días naturales
   return { n: last.c + 1, pub: pub, lun: lun, mar: mar, dias: dias };
 }
 function viewInicio() {
