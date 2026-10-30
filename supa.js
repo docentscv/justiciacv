@@ -167,6 +167,7 @@
     buscar: function (nombre) { return authed('POST', '/rest/v1/rpc/buscar_mi_fila', { json: { p_nombre: nombre } }); },
     confirmar: function (nombre, cuerpo, orden) { return authed('POST', '/rest/v1/rpc/confirmar_mi_fila', { json: { p_nombre: nombre, p_cuerpo: cuerpo, p_orden: orden } }); },
     posicion: function () { return authed('POST', '/rest/v1/rpc/mi_posicion', { json: {} }); },
+    anadirCuerpos: function () { return authed('POST', '/rest/v1/rpc/anadir_mis_cuerpos', { json: {} }); },
     historial: function () { return authed('POST', '/rest/v1/rpc/mi_historial', { json: {} }); },
     borrar: function () { return authed('POST', '/rest/v1/rpc/borrar_mi_cuenta', { json: {} }).then(function () { setSession(null); }); },
     me: function () {

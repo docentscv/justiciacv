@@ -584,7 +584,7 @@ function accAlta(flash, opts) {
     msg(flash) +
     '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' + homesHtml + '<div id="f-msg"></div><div class="row"><button class="btn primary" type="submit">Buscar mi fila</button>' + (add ? '<button class="btn" type="button" id="n-cancel">Cancelar</button>' : '') + '</div></form>' +
     '<div id="n-out" style="margin-top:14px;display:grid;gap:10px"></div></section>' +
-    '<section class="callout"><b>Tu nombre no se guarda.</b> Se convierte en un código que no se puede deshacer y se descarta. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>' +
+    '<section class="callout"><b>Tu nombre no se guarda en nuestros servidores.</b> Se convierte en un código que no se puede deshacer y se descarta; solo lo recuerda tu navegador, para mostrarlo en tu pantalla. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>' +
     accCard(true);
   bindAccCard();
   if (add) $('#n-cancel').addEventListener('click', function () { accLoad(); });
@@ -607,13 +607,22 @@ function accAlta(flash, opts) {
         var elegidas = marcadas(); if (!elegidas.length) return;
         okb.disabled = true; okb.textContent = 'Un momento…';
         elegidas.reduce(function (p, x) { return p.then(function () { return ACC.confirmar(A.nombre, x.cuerpo, x.orden); }); }, Promise.resolve()).then(function () {
-          A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
+          guardaNombre(A.nombre); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
           var id = pidOfName(C.home), g = (!add && id != null) ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
           return g['catch'](function () {}).then(function () { accLoad({ ok: add ? 'Listo. Hemos añadido tus filas.' : 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
         }, function (e) { okb.disabled = false; okb.textContent = rows.length > 1 ? 'Soy yo en las filas marcadas' : 'Soy yo'; $('#f-msg').innerHTML = msg({ err: e.message }); });
       });
     });
   });
+}
+
+/* El nombre solo se guarda en ESTE navegador (localStorage), nunca en el servidor: el servidor solo conoce la huella. */
+function nombreGuardado() { var m = store.get('nom', {}); return (ACC && m[ACC.email()]) || ''; }
+function guardaNombre(n) { n = (n || '').replace(/\s+/g, ' ').trim(); if (!n || !ACC) return; var m = store.get('nom', {}); m[ACC.email()] = n; store.set('nom', m); }
+function olvidaNombre() { if (!ACC) return; var m = store.get('nom', {}); delete m[ACC.email()]; store.set('nom', m); }
+function bonito(n) {
+  if (n !== n.toUpperCase() && n !== n.toLowerCase()) return n;
+  return n.toLowerCase().replace(/(^|[\s,\-'])(\S)/g, function (m, a, b) { return a + b.toUpperCase(); }).replace(/\s(De|Del|La|Las|Los|Y|E)(?=[\s,])/g, function (m, w) { return ' ' + w.toLowerCase(); });
 }
 
 /* área personal */
@@ -631,7 +640,7 @@ function bindAccCard() {
   $('#del-t').addEventListener('input', function (e) { $('#del-ok').disabled = e.target.value.trim().toUpperCase() !== 'BORRAR'; });
   $('#del-ok').addEventListener('click', function () {
     var b = this; b.disabled = true; b.textContent = 'Borrando…';
-    ACC.borrar().then(function () { A.me = null; A.mode = 'in'; accAuth({ ok: 'Tu cuenta y tus datos se han borrado.' }); },
+    ACC.borrar().then(function () { olvidaNombre(); A.me = null; A.mode = 'in'; accAuth({ ok: 'Tu cuenta y tus datos se han borrado.' }); },
       function (e) { b.disabled = false; b.textContent = 'Borrar para siempre'; $('#del-msg').innerHTML = msg({ err: e.message }); });
   });
 }
@@ -646,7 +655,9 @@ function accDash(flash) {
   var r = accRoot(); if (!r) return;
   var st = subState();
   var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Prueba terminada</span>';
-  var head = '<section class="card"><div class="sec-h"><div><h2>Mi puesto</h2><p class="hint">' + esc(ACC.email()) + '</p></div>' + chip + '</div>' + msg(flash) + '</section>';
+  var nom = nombreGuardado();
+  var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + '</p></div>' + chip + '</div>' +
+    (st.ok && !nom ? '<p class="hint" id="nom-box" style="margin-top:8px"><button class="linkbtn" type="button" id="b-nom">Mostrar mi nombre aquí</button> (se guarda solo en este dispositivo)</p>' : '') + msg(flash) + '</section>';
   if (!st.ok) return accPaywall(head);
   r.innerHTML = head + '<div class="card empty" role="status">Cargando tu posición…</div>';
   Promise.all([ACC.posicion(), ACC.historial()]).then(function (res) { A.pos = res[0]; A.hist = res[1]; if (A.sel >= A.pos.length) A.sel = 0; drawDash(head); },
@@ -673,9 +684,8 @@ function drawDash(head) {
   var resumen = rows.map(function (x, i) {
     var inner = '<b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span>Puesto <b class="num">' + x.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + x.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill' + (x.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[x.estado] || x.estado) + '</span>';
     return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
-  }).join('') + '<p class="muted" style="margin-top:10px">Convocatoria <span class="num">' + cur.convocatoria + '/2026</span> · Población: <b>' + esc(C.home) + '</b></p>';
+  }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '/2026</span> · Población: <b>' + esc(C.home) + '</b> <button class="linkbtn" type="button" id="b-pob">Cambiar</button></p>';
   r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' +
-    '<section class="card"><div class="field" style="max-width:340px"><label for="c-home">Mi población</label><select class="input" id="c-home">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div><p class="hint" style="margin-top:8px">Se usa para ordenar las ofertas por distancia. Se guarda en tu cuenta.</p></section>' +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
@@ -683,11 +693,29 @@ function drawDash(head) {
     '<section class="card"><div class="sec-h"><h3>Alertas</h3><span class="pill">Próximamente</span></div><p class="hint">Avisos por correo, para no tener que entrar cada semana.</p>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Ofertas nuevas en mis poblaciones y mi cuerpo, cuando se publica el listado del viernes.</label>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label></section>' +
-    '<section class="card"><h3>¿Estás en más cuerpos?</h3><p class="hint">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si tu nombre no salía en alguno, puedes buscarlo otra vez cuando aparezca. Tu nombre no se guarda: hay que escribirlo de nuevo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar otra vez mi nombre</button></div></section>' +
+    '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
     accCard(true);
-  $('#b-add').addEventListener('click', function () { accAlta(null, { add: true }); });
+  $('#b-add').addEventListener('click', function () {
+    var b = this; b.disabled = true; b.textContent = 'Buscando…'; $('#add-msg').innerHTML = '';
+    ACC.anadirCuerpos().then(function (rows) {
+      if (rows && rows.length) { accLoad({ ok: 'Hemos añadido: ' + rows.map(function (x) { return cuNombre(typeof x === 'string' ? x : x.cuerpo_nuevo); }).join(', ') + '.' }); return; }
+      b.disabled = false; b.textContent = 'Buscar mis otros cuerpos';
+      $('#add-msg').innerHTML = '<div class="msg">No hemos encontrado tu nombre en ningún otro cuerpo del último listado' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '. Solo salen los cuerpos que tienen ofertas esa semana: vuelve a probar cuando se publique el siguiente.</div>';
+    }, function (e) { b.disabled = false; b.textContent = 'Buscar mis otros cuerpos'; $('#add-msg').innerHTML = msg({ err: e.message }); });
+  });
   $$('button[data-sel]', r).forEach(function (b) { b.addEventListener('click', function () { A.sel = +b.dataset.sel; drawDash(head); }); });
-  $('#c-home').addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); rerenderAcc(); });
+  $('#b-pob').addEventListener('click', function () {
+    $('#pob-box').innerHTML = '<label class="muted" for="c-home">Población:</label> <select class="input" id="c-home" style="max-width:260px;display:inline-block;margin-left:6px">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select>';
+    var sl = $('#c-home'); sl.focus();
+    sl.addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); drawDash(head); });
+  });
+  var bn = $('#b-nom');
+  if (bn) bn.addEventListener('click', function () {
+    $('#nom-box').innerHTML = '<span class="row"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></span><br><span class="hint">Solo se guarda en este navegador. Nuestro servidor no lo recibe.</span>';
+    var inp = $('#nom-in'); inp.focus();
+    function ok() { if (inp.value.trim().length < 3) return; guardaNombre(inp.value); accDash(); }
+    $('#nom-ok').addEventListener('click', ok); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ok(); } });
+  });
   bindTables(r); bindAccCard();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
