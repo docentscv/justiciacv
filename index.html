@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.supabase.co; base-uri 'self'; form-action 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://tile.openstreetmap.org; connect-src 'self' https://*.supabase.co; base-uri 'self'; form-action 'self'">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="description" content="Ofertas, adjudicaciones y tu posición en la bolsa de interinos de Justicia de la Comunitat Valenciana. Web independiente y no oficial.">
 <title>JusticiaCV</title>
@@ -252,6 +252,42 @@ details.acc .body { padding: 0 0 16px; display: grid; gap: 10px; max-width: 68ch
 .form { display: grid; gap: 12px; max-width: 420px; }
 .note-top { margin-bottom: 14px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } .tip { transition: none; } }
+
+/* ---- Mapa ---- */
+.mpf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; }
+@media (min-width: 760px) { .mpf { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.map { position: relative; height: clamp(380px, 62vh, 640px); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: #E3E8EF; touch-action: none; user-select: none; -webkit-user-select: none; cursor: grab; outline-offset: 2px; }
+.map.drag { cursor: grabbing; }
+.mp-tiles, .mp-mk { position: absolute; inset: 0; overflow: hidden; }
+.mp-mk { pointer-events: none; z-index: 1; }
+.mp-t { position: absolute; left: 0; top: 0; width: 256px; height: 256px; max-width: none; transform-origin: 0 0; pointer-events: none; will-change: transform; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .map { background: #1A2338; } :root:not([data-theme="light"]) .mp-t { filter: brightness(.7) contrast(1.1) saturate(.75); } }
+:root[data-theme="dark"] .map { background: #1A2338; }
+:root[data-theme="dark"] .mp-t { filter: brightness(.7) contrast(1.1) saturate(.75); }
+.mp-m { position: absolute; left: 0; top: 0; border: 0; padding: 0; border-radius: 50%; cursor: pointer; pointer-events: auto; box-shadow: 0 0 0 2px var(--surface), 0 2px 8px rgba(13,27,54,.35); background: var(--c-none); }
+.mp-m span { position: absolute; inset: 5px; border-radius: 50%; background: var(--surface); color: var(--ink); display: grid; place-items: center; font: 700 12px/1 var(--font-mono); }
+.mp-m.fav { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--c-sus), 0 2px 8px rgba(13,27,54,.35); }
+.mp-m.on { box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px var(--brand), 0 2px 10px rgba(13,27,54,.45); z-index: 3; }
+.mp-m:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.mp-home { position: absolute; left: 0; top: 0; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; background: var(--brand); border: 3px solid var(--surface); box-shadow: 0 1px 6px rgba(13,27,54,.5); pointer-events: none; }
+.mp-rad { position: absolute; left: 0; top: 0; border-radius: 50%; border: 2px dashed var(--brand); background: rgba(19,41,91,.06); pointer-events: none; }
+.mp-ctl { position: absolute; top: 10px; right: 10px; display: grid; gap: 6px; z-index: 5; }
+.mp-ctl button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 700 20px/1 var(--font-ui); cursor: pointer; box-shadow: var(--shadow); }
+.mp-ctl button:hover { background: var(--tint); }
+.mp-ctl button.txt { font-size: 12px; font-weight: 700; }
+.mp-attr { position: absolute; right: 0; bottom: 0; z-index: 4; font-size: 11px; background: rgba(255,255,255,.85); color: #223; padding: 2px 6px; border-top-left-radius: 8px; }
+.mp-attr a { color: inherit; }
+.mp-pop { position: absolute; left: 10px; right: 10px; bottom: 22px; max-height: 46%; overflow: auto; z-index: 6; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; box-shadow: var(--shadow); cursor: default; user-select: text; -webkit-user-select: text; touch-action: pan-y; }
+@media (min-width: 760px) { .mp-pop { right: auto; width: 360px; max-height: 70%; bottom: 26px; left: 10px; } }
+.mp-ph { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.mp-ph b { font-size: 16px; }
+.mp-x { border: 0; background: none; font-size: 22px; line-height: 1; padding: 4px 8px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+.mp-x:hover { background: var(--tint); }
+.mp-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.mp-list li { border-top: 1px solid var(--line); padding-top: 8px; font-size: 14px; display: grid; gap: 4px; }
+.mp-list li:first-child { border-top: 0; padding-top: 0; }
+.mp-lc { font-weight: 600; overflow-wrap: anywhere; }
+.nem { display: grid; gap: 10px; margin: 22px 0; }
 </style>
 
 <style>[hidden]{display:none!important}body{margin:0}</style>
@@ -268,6 +304,7 @@ details.acc .body { padding: 0 0 16px; display: grid; gap: 10px; max-width: 68ch
       <a class="tab" href="#inicio" data-r="inicio">Inicio</a>
       <a class="tab" href="#ofertas" data-r="ofertas">Ofertas</a>
       <a class="tab" href="#zonas" data-r="zonas">Zonas</a>
+      <a class="tab" href="#mapa" data-r="mapa">Mapa</a>
       <a class="tab" href="#datos" data-r="datos">Datos</a>
       <a class="tab" href="#guia" data-r="guia">Guía</a>
     </nav>

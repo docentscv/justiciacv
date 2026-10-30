@@ -2,6 +2,11 @@
 'use strict';
 var D = window.JCV_D;
 var ACC = window.JCV_ACC || null, NOTE = window.JCV_NOTE || '';
+/* Enlace de Némesis (la aplicación de la Generalitat donde se piden las ofertas). Vacío = el botón no se muestra. */
+var NEMESIS_URL = window.JCV_NEMESIS || '';
+var NEM = /^https:\/\//.test(NEMESIS_URL) ? NEMESIS_URL : '';
+/* Acceso gratuito para todos hasta final de 2026; desde 2027, 9,99 € por todo el año 2027. */
+var GRATIS_FIN = new Date('2027-01-01T00:00:00+01:00');
 
 /* ---------- utilidades ---------- */
 var $ = function (s, el) { return (el || document).querySelector(s); };
@@ -375,10 +380,8 @@ function viewCuenta() {
     '<h1>Tu puesto, quién tienes delante y dónde hay plazas cerca</h1>' +
     '<p class="lead">Escribes tu nombre una vez y la web encuentra tu fila en el listado oficial. Tú confirmas que eres tú, y nadie más ve tu nombre.</p>' +
     '<div class="row"><button class="btn primary" type="button" disabled>Crear cuenta · próximamente</button><button class="btn" id="goDemo" type="button">Ver cómo será</button></div></div>' +
-    '<div class="card"><p class="eyebrow">Precio previsto</p><div class="price-n" style="margin-top:6px"><b class="num">7 días</b> gratis</div>' +
-    '<p style="margin-top:8px">Después, <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
-    '<p class="hint" style="margin-top:8px">Ver ofertas, zonas y datos sigue siendo gratis.</p></div></section>' +
-    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Escribes tu nombre y eliges tu población</b>El nombre, como aparece en el listado oficial.</div><div><b>2. Confirmas tu fila</b>La web te muestra tu cuerpo, grupo y puesto, y confirmas que eres tú.</div><div><b>3. Empiezas la prueba</b>Siete días con todo el área personal, sin pagar.</div></div></section>' +
+    pricing() + '</section>' +
+    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Escribes tu nombre y eliges tu población</b>El nombre, como aparece en el listado oficial.</div><div><b>2. Confirmas tu fila</b>La web te muestra tu cuerpo, grupo y puesto, y confirmas que eres tú.</div><div><b>3. Lo usas gratis</b>Todo el área personal sin pagar hasta el 31 de diciembre de 2026.</div></div></section>' +
     '<section class="card" id="demo"><div class="sec-h"><div><h2>Así se verá tu cuenta</h2><p class="hint">Persona ficticia. Cambia cuerpo, grupo y puesto para probarlo: las cifras salen de los listados reales de la última semana.</p></div><span class="pill warn">Datos de ejemplo</span></div>' +
     '<div class="grid2" style="gap:12px;margin-top:14px"><div class="field"><label for="c-cu">Cuerpo</label><select class="input" id="c-cu">' + CUKEYS.map(function (k) { return '<option value="' + k[0] + '"' + (P.cu === k[0] ? ' selected' : '') + '>' + k[1] + '</option>'; }).join('') + '</select></div>' +
     '<div class="field"><label for="c-g">Grupo</label><select class="input" id="c-g">' + gs.map(function (g) { return '<option value="' + g + '"' + (+P.g === g ? ' selected' : '') + '>Grupo ' + g + '</option>'; }).join('') + '</select></div>' +
@@ -480,9 +483,9 @@ var saveProfileSoon = debounce(function () {
 onProfile = saveProfileSoon;
 
 function pricing() {
-  return '<div class="card"><p class="eyebrow">Precio</p><div class="price-n" style="margin-top:6px"><b class="num">7 días</b> gratis</div>' +
-    '<p style="margin-top:8px">Después, <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
-    '<p class="hint" style="margin-top:8px">La prueba empieza cuando confirmas tu fila. Ver ofertas, zonas y datos sigue siendo gratis.</p></div>';
+  return '<div class="card"><p class="eyebrow">Precio</p><div class="price-n" style="margin-top:6px"><b>Gratis</b> hasta fin de 2026</div>' +
+    '<p style="margin-top:8px">Todo el área personal sin pagar hasta el <b>31 de diciembre de 2026</b>. Desde 2027, <b class="num">9,99 €</b> por todo el año 2027, sin renovación automática.</p>' +
+    '<p class="hint" style="margin-top:8px">Ver ofertas, zonas, mapa y datos sigue siendo gratis.</p></div>';
 }
 function accFatal(e) {
   var r = accRoot(); if (!r) return;
@@ -524,7 +527,7 @@ function accAuth(flash) {
   r.innerHTML = '<section class="hero"><div class="hero-t"><p class="eyebrow">Área personal</p><h1>' + (forgot ? 'Recupera tu contraseña' : 'Tu puesto, quién tienes delante y dónde hay plazas cerca') + '</h1>' +
     '<p class="lead">Crea tu cuenta, escribe tu nombre una vez y la web encuentra tu fila en el listado oficial. Tú confirmas que eres tú, y nadie más ve tu nombre.</p></div><div class="card">' + form + '</div></section>' +
     pricing() +
-    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Creas tu cuenta</b>Con tu correo y una contraseña.</div><div><b>2. Confirmas tu fila</b>Escribes tu nombre y la web te muestra tu cuerpo, grupo y puesto.</div><div><b>3. Empiezas la prueba</b>Siete días con todo el área personal, sin pagar.</div></div></section>' +
+    '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Creas tu cuenta</b>Con tu correo y una contraseña.</div><div><b>2. Confirmas tu fila</b>Escribes tu nombre y la web te muestra tu cuerpo, grupo y puesto.</div><div><b>3. Lo usas gratis</b>Todo el área personal sin pagar hasta el 31 de diciembre de 2026.</div></div></section>' +
     '<section class="callout"><b>Tu nombre.</b> Se usa solo para encontrar tu fila en el listado oficial. La web no guarda tu nombre: guarda un código que no se puede deshacer y que sirve para reconocer tu fila. Por delante de ti se muestran cifras, nunca nombres de otras personas. Puedes borrar tu cuenta y tus datos cuando quieras.</section>';
   $$('button[data-amode]', r).forEach(function (b) { b.addEventListener('click', function () { A.mode = b.dataset.amode; accAuth(); }); });
   var fg = $('#a-forgot'); if (fg) fg.addEventListener('click', function () { A.mode = 'forgot'; accAuth(); });
@@ -613,7 +616,7 @@ function accAlta(flash, opts) {
         }).then(function () {
           guardaNombre(nombreTecleado); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
           var id = pidOfName(C.home), g = id != null ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
-          return g['catch'](function () {}).then(function () { A.view = 'main'; accLoad({ ok: test ? 'Listo. Tu cuenta es ahora la de la persona que has buscado (modo prueba).' : 'Listo. Empieza tu prueba gratuita de 7 días.' }); });
+          return g['catch'](function () {}).then(function () { A.view = 'main'; accLoad({ ok: test ? 'Listo. Tu cuenta es ahora la de la persona que has buscado (modo prueba).' : 'Listo. Ya tienes tu área personal.' }); });
         }, function (e) { okb.disabled = false; okb.textContent = lbl; $('#f-msg').innerHTML = msg({ err: e.message }); });
       });
     });
@@ -673,12 +676,13 @@ function subState() {
   var paid = !!(s && s.pagado_hasta && new Date(s.pagado_hasta + 'T23:59:59') >= now);
   var trial = !!(s && new Date(s.prueba_fin) > now);
   var left = trial ? Math.max(1, Math.ceil((new Date(s.prueba_fin) - now) / 86400000)) : 0;
-  return { paid: paid, trial: trial, left: left, s: s, ok: paid || trial };
+  var promo = !!(trial && now < GRATIS_FIN && new Date(s.prueba_fin) >= GRATIS_FIN); // acceso gratuito hasta el 31-dic-2026
+  return { paid: paid, trial: trial, promo: promo, left: left, s: s, ok: paid || trial };
 }
 function accDash(flash) {
   var r = accRoot(); if (!r) return;
   var st = subState();
-  var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Prueba terminada</span>';
+  var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.promo ? '<span class="pill ok">Gratis hasta el 31 dic 2026</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Acceso gratuito terminado</span>';
   var nom = nombreGuardado();
   var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + '</p></div>' + chip + '</div>' +
     msg(flash) + '</section>';
@@ -689,7 +693,7 @@ function accDash(flash) {
 }
 function accPaywall(head) {
   var r = accRoot(); if (!r) return;
-  r.innerHTML = head + '<section class="card"><h2>Tu prueba gratuita ha terminado</h2><p style="margin-top:8px">Para seguir viendo tu posición, quién tienes delante y las ofertas cerca de ti, el área personal cuesta <b class="num">9,99 €</b> por curso, sin renovación automática.</p>' +
+  r.innerHTML = head + '<section class="card"><h2>Tu acceso gratuito ha terminado</h2><p style="margin-top:8px">Para seguir viendo tu posición, quién tienes delante y las ofertas cerca de ti, el área personal cuesta <b class="num">9,99 €</b> por todo el año 2027, sin renovación automática.</p>' +
     '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" disabled>Pagar 9,99 € · próximamente</button></div>' +
     '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas y los datos.</p></section>';
 }
@@ -708,7 +712,7 @@ function drawDash(head) {
     var inner = '<b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span>Puesto <b class="num">' + x.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + x.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill' + (x.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[x.estado] || x.estado) + '</span>';
     return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
   }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '</span> · Población: <b>' + esc(C.home) + '</b>' + (A.admin ? ' <button class="linkbtn" type="button" id="b-pob">Cambiar</button>' : '') + '</p>';
-  r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' +
+  r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' + nemCard() +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
@@ -837,7 +841,7 @@ function viewGuia() {
     A('Cómo leer esta web', '<p>Las listas oficiales no numeran las filas. Esta web cuenta la posición de cada persona dentro de su cuerpo y su grupo en el listado completo de cada semana, y calcula el corte: la última posición de ese grupo que obtuvo plaza. Es un dato real pero no una promesa. Las listas cambian cada semana, entran y salen personas sin que haya una edición nueva, y aquí no se sabe cuántas ofertas encajan con tu zona o con tu cuerpo.</p>') +
     A('Fuentes y límites', '<p>Los datos salen de los PDF oficiales publicados por la Conselleria de Justicia en su web de adjudicación de ofertas de empleo temporal. Esta es una web independiente y no oficial, y no sustituye a la información oficial. Todo está agregado: no se publican nombres, DNI ni datos personales. Si ves un error, contrasta siempre con el PDF original.</p>') +
     '</section>' +
-    '<section class="card"><div class="sec-h"><h2>Área personal</h2><span class="pill">Vista previa</span></div><p class="hint">Consultar ofertas, zonas y datos es gratis. El área personal se prueba 7 días gratis y después cuesta 9,99 € por curso, sin renovación automática.</p><div class="row" style="margin-top:12px"><a class="btn primary" href="#cuenta">Ver cómo será</a></div></section>';
+    '<section class="card"><div class="sec-h"><h2>Área personal</h2><span class="pill">Vista previa</span></div><p class="hint">Consultar ofertas, zonas y datos es gratis. El área personal es gratis hasta el 31 de diciembre de 2026 y, desde 2027, cuesta 9,99 € por todo el año 2027, sin renovación automática.</p><div class="row" style="margin-top:12px"><a class="btn primary" href="#cuenta">Ver cómo será</a></div></section>';
 }
 function afterGuia() {
   $('#listen').addEventListener('click', function () {
@@ -848,7 +852,214 @@ function afterGuia() {
 }
 
 /* ---------- router ---------- */
-var ROUTES = { cuenta: [viewCuenta, afterCuenta], inicio: [viewInicio, afterInicio], ofertas: [viewOfertas, afterOfertas], zonas: [viewZonas, afterZonas], datos: [viewDatos, afterDatos], guia: [viewGuia, afterGuia] };
+/* ---------- Mapa (mapa propio con teselas de OpenStreetMap; sin librerías externas) ---------- */
+var MP = { cu: 'all', tipo: 'all', per: 'last', rad: 0, home: null, c: null, z: null, sel: null };
+var TILE_URL = 'https://tile.openstreetmap.org/', ZMIN = 6, ZMAX = 13;
+function mercX(lon, z) { return (lon + 180) / 360 * 256 * Math.pow(2, z); }
+function mercY(lat, z) { var s = Math.sin(rad(Math.max(-85, Math.min(85, lat)))); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * Math.pow(2, z); }
+function unX(x, z) { return x / (256 * Math.pow(2, z)) * 360 - 180; }
+function unY(y, z) { var n = Math.PI - 2 * Math.PI * y / (256 * Math.pow(2, z)); return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))); }
+function mapHome() { if (MP.home == null) MP.home = homeIdx(); return MP.home; }
+function mapPoints() {
+  var by = {}, hxy = MP.rad ? D.xy[mapHome()] : null, from = MP.per === 'last' ? last.c : last.c - 3;
+  offers.forEach(function (o) {
+    if (o.c < from || o.c > last.c) return;
+    if (MP.cu !== 'all' && o.cu !== MP.cu) return;
+    if (MP.tipo !== 'all' && o.tipo !== MP.tipo) return;
+    if (hxy && km(hxy, D.xy[o.pi]) > MP.rad) return;
+    var p = by[o.pi] || (by[o.pi] = { pi: o.pi, pob: o.pob, prov: o.prov, n: 0, t: [0, 0, 0], list: [] });
+    p.n++; if (o.tipo >= 0 && o.tipo < 3) p.t[o.tipo]++; p.list.push(o);
+  });
+  return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.n - a.n || a.pob.localeCompare(b.pob, 'es'); });
+}
+function mapFit(W, H, pts) {
+  var ll = pts.map(function (p) { return D.xy[p.pi]; });
+  if (MP.rad) { var h = D.xy[mapHome()], dLat = MP.rad / 111, dLon = MP.rad / (111 * Math.cos(rad(h[0]))); ll.push([h[0] + dLat, h[1] + dLon], [h[0] - dLat, h[1] - dLon]); }
+  if (!ll.length) ll = [[37.85, -1.4], [40.8, 0.55]];
+  var a = Math.min.apply(null, ll.map(function (x) { return x[0]; })), b = Math.max.apply(null, ll.map(function (x) { return x[0]; })),
+      c = Math.min.apply(null, ll.map(function (x) { return x[1]; })), d = Math.max.apply(null, ll.map(function (x) { return x[1]; }));
+  var pad = 56, z = ZMAX;
+  for (; z > ZMIN; z--) { if (mercX(d, z) - mercX(c, z) <= W - 2 * pad && mercY(a, z) - mercY(b, z) <= H - 2 * pad) break; }
+  if (ll.length === 1) z = Math.min(z, 10);
+  MP.z = z; MP.c = [unY((mercY(a, z) + mercY(b, z)) / 2, z), unX((mercX(c, z) + mercX(d, z)) / 2, z)];
+}
+function viewMapa() {
+  var pts = mapPoints(), tot = pts.reduce(function (s, p) { return s + p.n; }, 0);
+  var sel = function (k, label, arr) { return '<div class="field"><label for="mf-' + k + '">' + label + '</label><select class="input" id="mf-' + k + '" data-mf="' + k + '">' + arr.map(function (x) { return '<option value="' + x[0] + '"' + (String(MP[k]) === String(x[0]) ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>'; };
+  var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
+  var mx = pts.length ? pts[0].n : 1;
+  return '<section class="card"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Cada círculo es una población: el número son sus ofertas y el color, el tipo. Pulsa uno para verlas.</p></div></div>' +
+    '<div class="mpf" style="margin-top:12px">' + sel('per', 'Periodo', [['last', 'Esta semana'], ['4', 'Últimas 4 semanas']]) +
+    sel('cu', 'Cuerpo', [['all', 'Todos']].concat(CUCHIPS)) + sel('tipo', 'Tipo', [['all', 'Todos'], [0, 'Vacante'], [1, 'Sustitución'], [2, 'Refuerzo']]) +
+    sel('rad', 'Distancia', [[0, 'Sin límite'], [15, 'Hasta 15 km'], [30, 'Hasta 30 km'], [60, 'Hasta 60 km'], [100, 'Hasta 100 km']]) +
+    (MP.rad ? '<div class="field"><label for="mp-home">Desde</label><select class="input" id="mp-home">' + homes.map(function (h) { return '<option value="' + h.i + '"' + (h.i === mapHome() ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div>' : '') + '</div></section>' +
+    '<section class="card" style="padding:12px"><div class="sec-h" style="padding:2px 4px 10px"><p style="margin:0"><b class="num">' + tot + '</b> ' + (tot === 1 ? 'oferta' : 'ofertas') + ' en <b class="num">' + pts.length + '</b> ' + (pts.length === 1 ? 'población' : 'poblaciones') + '</p>' +
+    '<div class="legend">' + TIP.map(function (t) { return '<span><i class="dot d-' + t.cls + '"></i>' + t.n + '</span>'; }).join('') + (MP.rad ? '<span><i class="dot" style="background:var(--brand)"></i>Desde aquí</span>' : '') + '</div></div>' +
+    '<div class="map" id="map" role="group" tabindex="0" aria-label="Mapa de ofertas. Flechas para moverlo, más y menos para el zoom."><div class="mp-tiles"></div><div class="mp-mk"></div>' +
+    '<div class="mp-ctl"><button type="button" data-mc="in" aria-label="Acercar">+</button><button type="button" data-mc="out" aria-label="Alejar">−</button><button type="button" class="txt" data-mc="fit" aria-label="Ver todas las ofertas" title="Ver todas">Todo</button></div>' +
+    '<div class="mp-pop" id="mp-pop" hidden></div>' +
+    '<div class="mp-attr"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© colaboradores de OpenStreetMap</a></div></div>' +
+    (pts.length ? '' : '<p class="hint" style="padding:10px 4px 2px">No hay ofertas con estos filtros. Prueba con otro cuerpo, con más distancia o con las últimas 4 convocatorias.</p>') + '</section>' +
+    (pts.length ? '<section class="card"><h3>Poblaciones con ofertas</h3><p class="hint">La misma información en lista. La estrella guarda la población como zona tuya.</p><div style="margin-top:6px">' + pts.map(function (p) {
+      return '<div class="zrow"><div class="zname">' + starBtn(p.pob) + '<button class="lnk" type="button" data-mp="' + p.pi + '">' + esc(p.pob) + '</button></div><div class="zbar" style="width:' + Math.max(6, 100 * p.n / mx) + '%">' +
+        p.t.map(function (v, i) { return v ? '<i style="flex:' + v + ';background:var(' + TIP[i].v + ')" title="' + TIP[i].n + ': ' + v + '"></i>' : ''; }).join('') + '</div><div class="zn num">' + p.n + '</div></div>';
+    }).join('') + '</div></section>' : '');
+}
+function afterMapa() {
+  var v = $('#view');
+  $$('select[data-mf]', v).forEach(function (s) {
+    s.addEventListener('change', function () {
+      var k = s.dataset.mf, x = s.value; MP[k] = (k === 'cu' || k === 'tipo') ? (x === 'all' ? 'all' : +x) : (k === 'rad' ? +x : x);
+      MP.sel = null; if (k === 'rad') MP.z = null; render();
+    });
+  });
+  var hs = $('#mp-home'); if (hs) hs.addEventListener('change', function () { MP.home = +hs.value; MP.z = null; MP.sel = null; render(); });
+  var el = $('#map', v); if (!el) return;
+  var tl = $('.mp-tiles', el), mk = $('.mp-mk', el), pop = $('#mp-pop', el), pts = mapPoints(), W = 0, H = 0, imgs = {}, markers = [], homeEl = null, radEl = null;
+  function size() { W = el.clientWidth; H = el.clientHeight; }
+  size(); if (!MP.z || !MP.c) mapFit(W, H, pts);
+  pts.forEach(function (p) {
+    var a = 100 * p.t[0] / p.n, b = a + 100 * p.t[1] / p.n, sz = Math.round(26 + Math.min(16, 5 * Math.log(p.n) / Math.LN2)), e = document.createElement('button');
+    e.type = 'button'; e.className = 'mp-m' + (favs.has(p.pob) ? ' fav' : ''); e.dataset.pi = p.pi;
+    e.style.width = e.style.height = sz + 'px'; e.style.marginLeft = e.style.marginTop = (-sz / 2) + 'px';
+    e.style.background = 'conic-gradient(var(--c-vac) 0 ' + a + '%, var(--c-sus) ' + a + '% ' + b + '%, var(--c-ref) ' + b + '% 100%)';
+    e.setAttribute('aria-label', p.pob + ': ' + p.n + (p.n === 1 ? ' oferta' : ' ofertas')); e.innerHTML = '<span>' + p.n + '</span>';
+    mk.appendChild(e); markers.push({ p: p, e: e });
+  });
+  if (MP.rad) { radEl = document.createElement('div'); radEl.className = 'mp-rad'; mk.insertBefore(radEl, mk.firstChild); homeEl = document.createElement('div'); homeEl.className = 'mp-home'; homeEl.title = 'Desde aquí'; mk.appendChild(homeEl); }
+  function sweep() {
+    var done = true, z = MP.z;
+    Object.keys(imgs).forEach(function (k) { var m = imgs[k]; if (m.tz === z && m.need && !m.d) done = false; });
+    Object.keys(imgs).forEach(function (k) { var m = imgs[k]; if (!m.need && (m.tz === z || done || Object.keys(imgs).length > 160)) { if (m.im.parentNode) m.im.parentNode.removeChild(m.im); delete imgs[k]; } });
+  }
+  function draw() {
+    if (!el.isConnected) return;
+    var z = MP.z, n = Math.pow(2, z), cx = mercX(MP.c[1], z), cy = mercY(MP.c[0], z), left = cx - W / 2, top = cy - H / 2;
+    Object.keys(imgs).forEach(function (k) { imgs[k].need = false; });
+    var x0 = Math.floor(left / 256), x1 = Math.floor((left + W) / 256), y0 = Math.max(0, Math.floor(top / 256)), y1 = Math.min(n - 1, Math.floor((top + H) / 256));
+    for (var ty = y0; ty <= y1; ty++) for (var tx = x0; tx <= x1; tx++) {
+      var key = z + '/' + tx + '/' + ty, m = imgs[key];
+      if (!m) {
+        var im = new Image(); im.alt = ''; im.draggable = false; im.decoding = 'async'; im.className = 'mp-t';
+        m = imgs[key] = { im: im, tz: z, tx: tx, ty: ty, d: false, need: true };
+        im.onload = im.onerror = (function (mm) { return function (ev) { mm.d = true; if (ev && ev.type === 'error') mm.im.style.visibility = 'hidden'; sweep(); }; })(m);
+        im.src = TILE_URL + z + '/' + (((tx % n) + n) % n) + '/' + ty + '.png'; tl.appendChild(im);
+      }
+      m.need = true;
+    }
+    Object.keys(imgs).forEach(function (k) {
+      var m = imgs[k], f = Math.pow(2, z - m.tz);
+      m.im.style.transform = 'translate(' + Math.round(m.tx * 256 * f - left) + 'px,' + Math.round(m.ty * 256 * f - top) + 'px)' + (f === 1 ? '' : ' scale(' + f + ')');
+    });
+    sweep();
+    markers.forEach(function (m) {
+      var xy = D.xy[m.p.pi]; m.e.style.transform = 'translate(' + (mercX(xy[1], z) - left).toFixed(1) + 'px,' + (mercY(xy[0], z) - top).toFixed(1) + 'px)';
+      m.e.style.zIndex = 2 + Math.max(0, 40 - m.p.n);
+    });
+    if (homeEl) {
+      var h = D.xy[mapHome()], hx = mercX(h[1], z) - left, hy = mercY(h[0], z) - top, rp = MP.rad * 1000 / (156543.03392 * Math.cos(rad(h[0])) / n);
+      homeEl.style.transform = 'translate(' + hx.toFixed(1) + 'px,' + hy.toFixed(1) + 'px)';
+      radEl.style.width = radEl.style.height = (2 * rp).toFixed(1) + 'px'; radEl.style.transform = 'translate(' + (hx - rp).toFixed(1) + 'px,' + (hy - rp).toFixed(1) + 'px)';
+    }
+    el.dataset.z = z;
+  }
+  function zoomAt(dz, px, py) {
+    var z = MP.z, nz = Math.max(ZMIN, Math.min(ZMAX, z + dz)); if (nz === z) return;
+    if (px == null) { px = W / 2; py = H / 2; }
+    var wx = mercX(MP.c[1], z) - W / 2 + px, wy = mercY(MP.c[0], z) - H / 2 + py, f = Math.pow(2, nz - z);
+    MP.z = nz; MP.c = [unY(wy * f - (py - H / 2), nz), unX(wx * f - (px - W / 2), nz)]; draw();
+  }
+  function panBy(dx, dy) { var z = MP.z; MP.c = [Math.max(-80, Math.min(80, unY(mercY(MP.c[0], z) + dy, z))), unX(mercX(MP.c[1], z) + dx, z)]; draw(); }
+  function popHtml(p) {
+    return '<div class="mp-ph"><div><b>' + esc(p.pob) + '</b><div class="hint">' + (p.prov !== 'Sin provincia' ? esc(p.prov) + ' · ' : '') + p.n + (p.n === 1 ? ' oferta' : ' ofertas') + '</div></div><div class="row" style="flex-wrap:nowrap;gap:2px">' + starBtn(p.pob) + '<button type="button" class="mp-x" data-mc="close" aria-label="Cerrar">×</button></div></div>' +
+      '<ul class="mp-list">' + p.list.map(function (o) { return '<li><span class="mp-lc">' + esc(o.centro) + '</span><span class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + (o.c !== last.c ? '<span class="pill">Conv. ' + o.c + '</span>' : '') + '</span></li>'; }).join('') + '</ul>' +
+      '<div class="row"><button type="button" class="btn small" data-mc="ver">Ver en Ofertas</button></div>';
+  }
+  function select(pi, center) {
+    var m = markers.filter(function (x) { return x.p.pi === pi; })[0];
+    markers.forEach(function (x) { x.e.classList.toggle('on', x === m); });
+    if (!m) { MP.sel = null; pop.hidden = true; return; }
+    MP.sel = pi; pop.innerHTML = popHtml(m.p); pop.hidden = false; pop.scrollTop = 0;
+    bindFavs(pop, function () { render(); });
+    if (center) { var z = MP.z, xy = D.xy[pi]; MP.c = [unY(mercY(xy[0], z) + H * (W < 760 ? 0.2 : 0), z), unX(mercX(xy[1], z) + (W >= 760 ? -W * 0.18 : 0), z)]; draw(); }
+  }
+  /* arrastrar, pellizcar, rueda, teclado */
+  var ptr = {}, drag = null, pinch = null, lastWheel = 0;
+  el.addEventListener('pointerdown', function (ev) {
+    if (ev.target.closest('.mp-pop, .mp-ctl, .mp-attr')) return;
+    ptr[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    var ids = Object.keys(ptr);
+    if (ids.length === 1) drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, cx: mercX(MP.c[1], MP.z), cy: mercY(MP.c[0], MP.z), on: false };
+    else if (ids.length === 2) { var a = ptr[ids[0]], b = ptr[ids[1]]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; drag = null; }
+  });
+  el.addEventListener('pointermove', function (ev) {
+    if (!ptr[ev.pointerId]) return; ptr[ev.pointerId] = { x: ev.clientX, y: ev.clientY };
+    if (drag && drag.id === ev.pointerId) {
+      var dx = ev.clientX - drag.x, dy = ev.clientY - drag.y;
+      if (!drag.on && Math.hypot(dx, dy) > 5) { drag.on = true; try { el.setPointerCapture(ev.pointerId); } catch (e) {} el.classList.add('drag'); }
+      if (drag.on) { MP.c = [Math.max(-80, Math.min(80, unY(drag.cy - dy, MP.z))), unX(drag.cx - dx, MP.z)]; draw(); }
+    }
+  });
+  function up(ev) {
+    delete ptr[ev.pointerId];
+    if (pinch && Object.keys(ptr).length < 2) {
+      var r = pinch.last == null ? 1 : pinch.last / pinch.d, bb = el.getBoundingClientRect();
+      if (r > 1.3) zoomAt(r > 2.6 ? 2 : 1, pinch.mx - bb.left, pinch.my - bb.top); else if (r < 0.77) zoomAt(r < 0.38 ? -2 : -1);
+      pinch = null;
+    }
+    if (drag && drag.id === ev.pointerId) { drag = null; el.classList.remove('drag'); }
+  }
+  el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
+  el.addEventListener('pointermove', function (ev) {
+    if (pinch && ptr[ev.pointerId]) { var ids = Object.keys(ptr); if (ids.length === 2) { var a = ptr[ids[0]], b = ptr[ids[1]]; pinch.last = Math.hypot(a.x - b.x, a.y - b.y); } }
+  });
+  el.addEventListener('wheel', function (ev) {
+    ev.preventDefault(); var t = Date.now(); if (t - lastWheel < 240) return; lastWheel = t;
+    var r = el.getBoundingClientRect(); zoomAt(ev.deltaY < 0 ? 1 : -1, ev.clientX - r.left, ev.clientY - r.top);
+  }, { passive: false });
+  el.addEventListener('dblclick', function (ev) {
+    if (ev.target.closest('.mp-pop, .mp-ctl, .mp-m')) return; var r = el.getBoundingClientRect(); zoomAt(1, ev.clientX - r.left, ev.clientY - r.top);
+  });
+  el.addEventListener('keydown', function (ev) {
+    if (ev.target !== el) { if (ev.key === 'Escape' && !pop.hidden) { select(null); } return; }
+    var k = ev.key, s = 90;
+    if (k === 'ArrowLeft') panBy(-s, 0); else if (k === 'ArrowRight') panBy(s, 0); else if (k === 'ArrowUp') panBy(0, -s); else if (k === 'ArrowDown') panBy(0, s);
+    else if (k === '+' || k === '=') zoomAt(1); else if (k === '-' || k === '_') zoomAt(-1); else return;
+    ev.preventDefault();
+  });
+  el.addEventListener('click', function (ev) {
+    var mc = ev.target.closest('[data-mc]'), m = ev.target.closest('.mp-m');
+    if (m) { select(+m.dataset.pi, true); return; }
+    if (!mc) return; var a = mc.dataset.mc;
+    if (a === 'in') zoomAt(1); else if (a === 'out') zoomAt(-1); else if (a === 'fit') { mapFit(W, H, pts); draw(); }
+    else if (a === 'close') select(null);
+    else if (a === 'ver' && MP.sel != null) { var p = markers.filter(function (x) { return x.p.pi === MP.sel; })[0]; if (p) { F = { conv: MP.per === 'last' ? 'last' : 'all', cu: 'all', prov: 'all', tipo: 'all', q: '', mine: false, pob: p.p.pob, shown: 24 }; location.hash = '#ofertas'; } }
+  });
+  $$('button[data-mp]', v).forEach(function (b) { b.addEventListener('click', function () { var pi = +b.dataset.mp; if (MP.z < 9) { MP.z = 9; } select(pi, true); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }); });
+  bindFavs(v, function () { render(); });
+  redraws.push(function () { size(); draw(); });
+  draw();
+  if (MP.sel != null) select(MP.sel, false);
+}
+
+/* ---------- Némesis: plazo de peticiones (lunes 10:00 a martes 9:59, hora de la península) ---------- */
+function plazoAbierto() {
+  var p = {};
+  try { new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', weekday: 'short', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date()).forEach(function (x) { p[x.type] = x.value; }); } catch (e) { return null; }
+  var d = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[p.weekday]; if (d == null) return null;
+  var t = d * 1440 + (+p.hour % 24) * 60 + +p.minute;
+  return t >= 1440 + 600 && t <= 2 * 1440 + 599;
+}
+function nemCard() {
+  if (!NEM) return '';
+  var ab = plazoAbierto();
+  var chip = ab === true ? '<span class="pill ok">Plazo abierto · hasta el martes a las 9:59</span>' : ab === false ? '<span class="pill">Plazo cerrado · abre el lunes a las 10:00</span>' : '';
+  return '<section class="card nem" id="nem-card"><div class="sec-h"><div><h3>Pedir plazas</h3><p class="hint">Las peticiones se hacen en Némesis, la aplicación de la Generalitat, con tu certificado digital. Desde el lunes a las 10:00 hasta el martes a las 9:59.</p></div>' + chip + '</div>' +
+    '<div class="row"><a class="btn primary" id="nem-go" href="' + esc(NEM) + '" target="_blank" rel="noopener noreferrer">Ir a Némesis ↗</a></div>' +
+    '<p class="hint">Se abre en otra pestaña. Esta web es independiente: no pide ni guarda nada de Némesis.</p></section>';
+}
+
+var ROUTES = { cuenta: [viewCuenta, afterCuenta], inicio: [viewInicio, afterInicio], ofertas: [viewOfertas, afterOfertas], zonas: [viewZonas, afterZonas], mapa: [viewMapa, afterMapa], datos: [viewDatos, afterDatos], guia: [viewGuia, afterGuia] };
 function render() {
   var h = (location.hash || '#inicio').slice(1); if (!ROUTES[h]) h = 'inicio';
   hideTip(); stopSpeech(); redraws.length = 0;
@@ -877,6 +1088,7 @@ function openMenu() {
   Promise.resolve(A.admin == null ? ACC.esAdmin().then(function (v) { A.admin = !!v; return A.admin; }, function () { A.admin = false; return false; }) : A.admin).then(function (adm) {
     menuEl.innerHTML = '<div class="who">' + (nom ? '<b>' + esc(bonito(nom)) + '</b>' : '') + '<span class="muted">' + esc(ACC.email()) + '</span>' + (adm ? '<span><span class="pill ok">Administrador</span></span>' : '') + '</div>' +
       '<button type="button" role="menuitem" data-m="main">Mi puesto</button>' +
+      (NEM ? '<a class="mi" role="menuitem" id="m-nem" href="' + esc(NEM) + '" target="_blank" rel="noopener noreferrer">Pedir plazas en Némesis ↗</a>' : '') +
       '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
       (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
       '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
