@@ -38,7 +38,11 @@ var offers = D.of.map(function (r) {
   o.pob = o.pob.replace('Castelló de la Plana/Castellón de la Plana', 'Castelló de la Plana');
   return o;
 });
-var weeks = D.sem, last = weeks[weeks.length - 1];
+var provW = null; D.sem.forEach(function (w) { if (w.prov) provW = w; });   /* convocatoria con solo el listado provisional (viernes) */
+var weeks = D.sem.filter(function (w) { return !w.prov; }), last = weeks[weeks.length - 1];
+var allOffers = offers, TOPC = provW ? provW.c : last.c;                      /* semana "actual": la provisional si la hay */
+if (provW) offers = offers.filter(function (o) { return o.c !== provW.c; });   /* las cifras e historiales solo usan semanas con adjudicación */
+var GO_NEM = false;
 var wk = {}; weeks.forEach(function (w) { wk[w.c] = w; });
 var PROVS = ['Alicante', 'Castellón', 'Valencia'];
 var STATS = {
@@ -133,7 +137,7 @@ function bindFavs(root, rerender) {
 function offerCard(o, extra) {
   var det = o.obs ? sentence(o.obs) : '';
   if (o.tipo === 2) { var m = o.obs.match(/(\d{2})-(\d{2})-(\d{4})/); if (m) det = 'Hasta el ' + m[1] + '/' + m[2] + '/' + m[3] + ', con posibles prórrogas'; }
-  var res = o.a > 0 ? '<span class="pill ok">Adjudicada · grupo ' + o.a + '</span>' : o.a === 0 ? '<span class="pill warn">Sin cubrir</span>' : '<span class="pill">Sin dato de adjudicación</span>';
+  var res = provW && o.c === provW.c ? '<span class="pill">Provisional · aún sin adjudicar</span>' : o.a > 0 ? '<span class="pill ok">Adjudicada · grupo ' + o.a + '</span>' : o.a === 0 ? '<span class="pill warn">Sin cubrir</span>' : '<span class="pill">Sin dato de adjudicación</span>';
   return '<article class="offer"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span></div>' + starBtn(o.pob) + '</div>' +
     '<h3>' + esc(o.centro) + '</h3><div class="where"><span>' + esc(o.pob) + '</span>' + (o.prov !== 'Sin provincia' ? '<span>· ' + o.prov + '</span>' : '') + (extra ? '<span>· ' + extra + '</span>' : '') + '</div>' +
     (det ? '<p class="hint">' + esc(det) + '</p>' : '') +
@@ -161,13 +165,20 @@ function nextConv() {
   var now = new Date(), dias = Math.round((new Date(mar.getFullYear(), mar.getMonth(), mar.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000); // días naturales hasta el martes de la convocatoria
   return { n: last.c + 1, pub: pub, lun: lun, mar: mar, dias: dias };
 }
+function provCard() {
+  var lun = addDays(provW.f, 3), mar = addDays(provW.f, 4), ab = plazoAbierto();
+  var chip = ab === true ? '<span class="pill ok">Plazo abierto ahora</span>' : '';
+  return '<div class="card" id="prov-card"><p class="eyebrow">Convocatoria ' + provW.c + ' · listado provisional</p><div class="next-d" style="margin-top:6px">' + provW.of + ' ofertas publicadas</div>' +
+    '<p class="hint">Publicadas el ' + fmtD(provW.f) + '. Todavía no hay adjudicación: las peticiones se hacen en Némesis del ' + fmtDL(lun) + ' a las 10:00 al ' + fmtDL(mar) + ' a las 9:59, y se adjudica ese martes. ' + chip + '</p>' +
+    '<div class="row" style="margin-top:12px"><a class="btn primary" href="#ofertas">Ver las ofertas</a><a class="btn" href="#mapa">Verlas en el mapa</a>' + (NEM ? '<a class="btn" href="#cuenta" id="prov-pedir">Pedir plaza</a>' : '') + '</div></div>';
+}
 function viewInicio() {
   var w = last, cub = w.adj, sin = w.of - cub;
   var nx = nextConv();
   var cd = nx.dias > 1 ? 'Faltan ' + nx.dias + ' días' : nx.dias === 1 ? 'Es mañana' : nx.dias === 0 ? 'Es hoy' : 'Debería estar publicada';
   var segs = [[w.v, 'vac'], [w.s, 'sus'], [w.r, 'ref']].filter(function (x) { return x[0] > 0; }).map(function (x) { return '<i class="s-' + x[1] + '" style="flex:' + x[0] + '"></i>'; }).join('');
   var mine = Array.from(favs);
-  var mineOffers = offers.filter(function (o) { return o.c === last.c && favs.has(o.pob); });
+  var mineOffers = allOffers.filter(function (o) { return o.c === TOPC && favs.has(o.pob); });
   var mineHtml = mine.length ? (mineOffers.length ? '<div class="offers" style="margin-top:12px">' + mineOffers.map(function (o) { return offerCard(o); }).join('') + '</div>' : '<p class="hint" style="margin-top:8px">Esta semana no hay ofertas en ' + mine.map(esc).join(', ') + '.</p>') : '<p class="hint" style="margin-top:8px">Marca con la estrella una población en <a href="#ofertas">Ofertas</a> o <a href="#zonas">Zonas</a> y verás aquí sus ofertas de la semana.</p>';
   return '<section class="hero"><div class="hero-t"><p class="eyebrow">Justicia · Comunitat Valenciana</p>' +
     '<h1>Qué hay esta semana y hasta dónde llega la lista</h1>' +
@@ -180,16 +191,16 @@ function viewInicio() {
     '<div class="seg" aria-hidden="true">' + segs + '</div>' +
     '<div class="legend" style="margin-top:10px"><span><i class="dot d-vac"></i>Vacantes ' + w.v + '</span><span><i class="dot d-sus"></i>Sustituciones ' + w.s + '</span><span><i class="dot d-ref"></i>Refuerzos ' + w.r + '</span></div>' +
     '<div style="margin-top:14px"><a class="btn small" href="#ofertas">Ver las ' + w.of + ' ofertas</a></div></div></section>' +
-    '<section class="grid2"><div class="card"><p class="eyebrow">Próxima convocatoria (estimación)</p><div class="next-d" style="margin-top:6px">' + nx.n + '/2026 · ' + fmtDL(nx.mar) + '</div><p class="hint">' + cd + '. No hay calendario oficial por adelantado: la fecha sale del ritmo de las últimas semanas.</p>' +
-    '<div class="cycle"><div><b>' + fmtDL(nx.pub).split(' ')[0] + ' por la tarde</b>Listado provisional de ofertas</div><div><b>' + fmtDL(nx.lun).split(' ')[0] + ' 10:00 a ' + fmtDL(nx.mar).split(' ')[0] + ' 9:59</b>Peticiones en Némesis con certificado digital</div><div><b>' + fmtDL(nx.mar).split(' ')[0] + '</b>Adjudicación por orden de lista</div></div></div>' +
+    '<section class="grid2">' + (provW ? provCard() : '<div class="card"><p class="eyebrow">Próxima convocatoria (estimación)</p><div class="next-d" style="margin-top:6px">' + nx.n + '/2026 · ' + fmtDL(nx.mar) + '</div><p class="hint">' + cd + '. No hay calendario oficial por adelantado: la fecha sale del ritmo de las últimas semanas.</p>' +
+    '<div class="cycle"><div><b>' + fmtDL(nx.pub).split(' ')[0] + ' por la tarde</b>Listado provisional de ofertas</div><div><b>' + fmtDL(nx.lun).split(' ')[0] + ' 10:00 a ' + fmtDL(nx.mar).split(' ')[0] + ' 9:59</b>Peticiones en Némesis con certificado digital</div><div><b>' + fmtDL(nx.mar).split(' ')[0] + '</b>Adjudicación por orden de lista</div></div></div>') +
     '<div class="card"><div class="sec-h"><h2>Tus zonas</h2><a class="btn small" href="#zonas">Elegir zonas</a></div>' + mineHtml + '</div></section>';
 }
-function afterInicio() { pulseChart($('#pulse')); bindFavs($('#view'), function () { render(); }); }
+function afterInicio() { var pp = $('#prov-pedir'); if (pp) pp.addEventListener('click', function () { GO_NEM = true; }); pulseChart($('#pulse')); bindFavs($('#view'), function () { render(); }); }
 
 function filtered() {
   var q = norm(F.q).split(/\s+/).filter(Boolean);
-  return offers.filter(function (o) {
-    if (F.conv === 'last' ? o.c !== last.c : F.conv !== 'all' && o.c !== +F.conv) return false;
+  return allOffers.filter(function (o) {
+    if (F.conv === 'last' ? o.c !== TOPC : F.conv !== 'all' && o.c !== +F.conv) return false;
     if (F.cu !== 'all' && o.cu !== +F.cu) return false;
     if (F.prov !== 'all' && o.prov !== F.prov) return false;
     if (F.tipo !== 'all' && o.tipo !== +F.tipo) return false;
@@ -205,7 +216,7 @@ function chipRow(name, items, cur) {
   }).join('') + '</div>';
 }
 function viewOfertas() {
-  var convOpts = '<option value="last"' + (F.conv === 'last' ? ' selected' : '') + '>Última · ' + last.c + '/2026 (' + fmtD(last.f) + ')</option><option value="all"' + (F.conv === 'all' ? ' selected' : '') + '>Todas las semanas</option>' +
+  var convOpts = '<option value="last"' + (F.conv === 'last' ? ' selected' : '') + '>' + (provW ? 'Provisional · ' + provW.c + '/2026 (' + fmtD(provW.f) + ')' : 'Última · ' + last.c + '/2026 (' + fmtD(last.f) + ')') + '</option><option value="all"' + (F.conv === 'all' ? ' selected' : '') + '>Todas las semanas</option>' +
     weeks.slice().reverse().map(function (w) { return '<option value="' + w.c + '"' + (String(F.conv) === String(w.c) ? ' selected' : '') + '>' + w.c + '/2026 · ' + fmtD(w.f) + '</option>'; }).join('');
   var list = filtered(), shown = list.slice(0, F.shown);
   return '<section class="card filters"><div class="sec-h"><h2>Ofertas</h2><span class="hint" id="count"></span></div>' +
@@ -417,11 +428,11 @@ function renderCuenta(out, S) {
       '<p class="hint">Esta semana: ' + r[4] + ' piden ofertas, ' + r[5] + ' adjudicadas' + (r[6] != null ? ', último puesto adjudicado ' + r[6] : '') + '.</p></div>';
   }).join('');
   var hi = homeIdx(), home = D.xy[hi], from = last.c - 7, near = {}, lastNear = [];
-  offers.forEach(function (o) {
+  allOffers.forEach(function (o) {
     if (CUC[o.cu] !== S.cu) return;
     var dist = km(home, D.xy[o.pi]); if (dist > C.rad) return;
-    if (o.c >= from) { var z = near[o.pi] || (near[o.pi] = { n: o.pob, d: dist, t: [0, 0, 0], tot: 0 }); z.t[o.tipo]++; z.tot++; }
-    if (o.c === last.c) lastNear.push({ o: o, d: dist });
+    if (o.c >= from && o.c <= last.c) { var z = near[o.pi] || (near[o.pi] = { n: o.pob, d: dist, t: [0, 0, 0], tot: 0 }); z.t[o.tipo]++; z.tot++; }
+    if (o.c === TOPC) lastNear.push({ o: o, d: dist });
   });
   var nearRows = Object.keys(near).map(function (k) { return near[k]; }).sort(function (a, b) { return a.d - b.d; }), maxT = Math.max.apply(null, nearRows.map(function (z) { return z.tot; }).concat([1]));
   lastNear.sort(function (a, b) { return a.d - b.d; });
@@ -446,7 +457,7 @@ function renderCuenta(out, S) {
     (nearRows.length ? '<div style="margin-top:6px">' + nearRows.slice(0, 12).map(function (z) {
       return '<div class="zrow"><div class="zname" style="flex-direction:column;align-items:flex-start;gap:0"><b>' + esc(z.n) + '</b><span class="muted" style="font-size:13px">' + kmTxt(z.d) + '</span></div><div class="zbar" style="width:' + Math.max(6, 100 * z.tot / maxT) + '%">' + z.t.map(function (v, i) { return v ? '<i style="flex:' + v + ';background:var(' + TIP[i].v + ')" title="' + TIP[i].n + ': ' + v + '"></i>' : ''; }).join('') + '</div><div class="zn num">' + z.tot + '</div></div>';
     }).join('') + '</div>' : '<p class="hint" style="margin-top:8px">No ha habido ofertas de tu cuerpo a esta distancia en las últimas 8 semanas.</p>') + '</div>' +
-    '<div><h3 style="font-size:15px">Ofertas de esta semana (conv. ' + last.c + ')</h3>' +
+    '<div><h3 style="font-size:15px">Ofertas de esta semana (conv. ' + TOPC + (provW ? ', provisional' : '') + ')</h3>' +
     (lastNear.length ? '<div class="offers" style="margin-top:8px;grid-template-columns:1fr">' + lastNear.slice(0, 5).map(function (x) { return offerCard(x.o, kmTxt(x.d)); }).join('') + '</div>' + (lastNear.length > 5 ? '<p class="hint" style="margin-top:8px">Y ' + (lastNear.length - 5) + ' más en <a href="#ofertas">Ofertas</a>.</p>' : '') : '<p class="hint" style="margin-top:8px">Esta semana no hay ofertas de tu cuerpo a esta distancia.</p>') + '</div></div></div>';
   cutChart($('#accchart'), rowsC, pos);
   bindCuenta(out);
@@ -712,6 +723,7 @@ function drawDash(head) {
     var inner = '<b>' + esc(cuNombre(x.cuerpo)) + ' · grupo ' + x.grupo + '</b><span>Puesto <b class="num">' + x.posicion_en_grupo.toLocaleString('es-ES') + '</b> de <span class="num">' + x.personas_en_grupo.toLocaleString('es-ES') + '</span> en tu grupo</span><span class="pill' + (x.estado === 'adjudicada' ? ' ok' : '') + '">' + esc(ESTADO[x.estado] || x.estado) + '</span>';
     return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
   }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '</span> · Población: <b>' + esc(C.home) + '</b>' + (A.admin ? ' <button class="linkbtn" type="button" id="b-pob">Cambiar</button>' : '') + '</p>';
+  var __go = GO_NEM; GO_NEM = false;
   r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' + nemCard() +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
@@ -722,6 +734,7 @@ function drawDash(head) {
     '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label></section>' +
     '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
     '';
+  if (__go) { var nc = $('#nem-card'); if (nc) { nc.classList.add('flash'); setTimeout(function () { nc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
   $('#b-add').addEventListener('click', function () {
     var b = this; b.disabled = true; b.textContent = 'Buscando…'; $('#add-msg').innerHTML = '';
     ACC.anadirCuerpos().then(function (rows) {
@@ -861,9 +874,9 @@ function unX(x, z) { return x / (256 * Math.pow(2, z)) * 360 - 180; }
 function unY(y, z) { var n = Math.PI - 2 * Math.PI * y / (256 * Math.pow(2, z)); return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))); }
 function mapHome() { if (MP.home == null) MP.home = homeIdx(); return MP.home; }
 function mapPoints() {
-  var by = {}, hxy = MP.rad ? D.xy[mapHome()] : null, from = MP.per === 'last' ? last.c : last.c - 3;
-  offers.forEach(function (o) {
-    if (o.c < from || o.c > last.c) return;
+  var by = {}, hxy = MP.rad ? D.xy[mapHome()] : null, from = MP.per === 'last' ? TOPC : TOPC - 3;
+  allOffers.forEach(function (o) {
+    if (o.c < from || o.c > TOPC) return;
     if (MP.cu !== 'all' && o.cu !== MP.cu) return;
     if (MP.tipo !== 'all' && o.tipo !== MP.tipo) return;
     if (hxy && km(hxy, D.xy[o.pi]) > MP.rad) return;
@@ -892,7 +905,7 @@ function viewMapa() {
   var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
   var mx = pts.length ? pts[0].n : 1;
   return '<section class="card"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Cada círculo es una población: el número son sus ofertas y el color, el tipo. Pulsa uno para verlas.</p></div></div>' +
-    '<div class="mpf" style="margin-top:12px">' + sel('per', 'Periodo', [['last', 'Esta semana'], ['4', 'Últimas 4 semanas']]) +
+    '<div class="mpf" style="margin-top:12px">' + sel('per', 'Periodo', [['last', provW ? 'Esta semana (provisional)' : 'Esta semana'], ['4', 'Últimas 4 semanas']]) +
     sel('cu', 'Cuerpo', [['all', 'Todos']].concat(CUCHIPS)) + sel('tipo', 'Tipo', [['all', 'Todos'], [0, 'Vacante'], [1, 'Sustitución'], [2, 'Refuerzo']]) +
     sel('rad', 'Distancia', [[0, 'Sin límite'], [15, 'Hasta 15 km'], [30, 'Hasta 30 km'], [60, 'Hasta 60 km'], [100, 'Hasta 100 km']]) +
     (MP.rad ? '<div class="field"><label for="mp-home">Desde</label><select class="input" id="mp-home">' + homes.map(function (h) { return '<option value="' + h.i + '"' + (h.i === mapHome() ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div>' : '') + '</div></section>' +
@@ -980,8 +993,8 @@ function afterMapa() {
   function panBy(dx, dy) { var z = MP.z; MP.c = [Math.max(-80, Math.min(80, unY(mercY(MP.c[0], z) + dy, z))), unX(mercX(MP.c[1], z) + dx, z)]; draw(); }
   function popHtml(p) {
     return '<div class="mp-ph"><div><b>' + esc(p.pob) + '</b><div class="hint">' + (p.prov !== 'Sin provincia' ? esc(p.prov) + ' · ' : '') + p.n + (p.n === 1 ? ' oferta' : ' ofertas') + '</div></div><div class="row" style="flex-wrap:nowrap;gap:2px">' + starBtn(p.pob) + '<button type="button" class="mp-x" data-mc="close" aria-label="Cerrar">×</button></div></div>' +
-      '<ul class="mp-list">' + p.list.map(function (o) { return '<li><span class="mp-lc">' + esc(o.centro) + '</span><span class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + (o.c !== last.c ? '<span class="pill">Conv. ' + o.c + '</span>' : '') + '</span></li>'; }).join('') + '</ul>' +
-      '<div class="row"><button type="button" class="btn small" data-mc="ver">Ver en Ofertas</button></div>';
+      '<ul class="mp-list">' + p.list.map(function (o) { return '<li><span class="mp-lc">' + esc(o.centro) + '</span><span class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + (o.c !== TOPC ? '<span class="pill">Conv. ' + o.c + '</span>' : (provW ? '<span class="pill">Provisional</span>' : '')) + '</span></li>'; }).join('') + '</ul>' +
+      '<div class="row"><button type="button" class="btn small" data-mc="ver">Ver en Ofertas</button>' + (NEM ? '<button type="button" class="btn small primary" data-mc="pedir">Pedir plaza · Mi cuenta</button>' : '') + '</div>';
   }
   function select(pi, center) {
     var m = markers.filter(function (x) { return x.p.pi === pi; })[0];
@@ -1041,6 +1054,7 @@ function afterMapa() {
     if (!mc) return; var a = mc.dataset.mc;
     if (a === 'in') zoomAt(1); else if (a === 'out') zoomAt(-1); else if (a === 'fit') { mapFit(W, H, pts); draw(); }
     else if (a === 'close') select(null);
+    else if (a === 'pedir') { GO_NEM = true; location.hash = '#cuenta'; }
     else if (a === 'ver' && MP.sel != null) { var p = markers.filter(function (x) { return x.p.pi === MP.sel; })[0]; if (p) { F = { conv: MP.per === 'last' ? 'last' : 'all', cu: 'all', prov: 'all', tipo: 'all', q: '', mine: false, pob: p.p.pob, shown: 24 }; location.hash = '#ofertas'; } }
   });
   $$('button[data-mp]', v).forEach(function (b) { b.addEventListener('click', function () { var pi = +b.dataset.mp; if (MP.z < 9) { MP.z = 9; } select(pi, true); el.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }); });

@@ -126,7 +126,7 @@
     cortes.forEach(function (k) { adjCortes[k[0]] = (adjCortes[k[0]] || 0) + k[5]; hasCortes[k[0]] = 1; });
     var sem = raw.semanas.slice().sort(function (a, b) { return a.convocatoria - b.convocatoria; }).map(function (w) {
       var adj = w.adjudicadas != null ? +w.adjudicadas : (hasCortes[w.convocatoria] ? adjCortes[w.convocatoria] : null);
-      return { c: w.convocatoria, f: w.fecha, of: +w.ofertas, v: +w.vacantes, s: +w.sustituciones, r: +w.refuerzos, adj: adj,
+      return { c: w.convocatoria, f: w.fecha, prov: !!w.provisional, of: +w.ofertas, v: +w.vacantes, s: +w.sustituciones, r: +w.refuerzos, adj: adj,
         adjPdf: w.adjudicadas != null, filas: w.filas_en_listas != null ? +w.filas_en_listas : null, part: w.piden_ofertas != null ? +w.piden_ofertas : null };
     });
     return { generado: sem.length ? sem[sem.length - 1].f : '', pobs: pobs, xy: xy, provs: provs, pid: pid, centros: centros, obs: obs, of: of, sem: sem, cortes: cortes, fuente: 'supabase' };
@@ -135,7 +135,8 @@
     return Promise.all([
       page('/rest/v1/poblaciones?select=id,nombre_visible,provincia,lat,lon&order=id'),
       page('/rest/v1/v_ofertas?select=convocatoria,n_puesto,cuerpo,centro,poblacion_id,tipo,observaciones,adjudicada_grupo&order=id'),
-      page('/rest/v1/v_semanas?select=convocatoria,fecha,ofertas,vacantes,sustituciones,refuerzos,adjudicadas,piden_ofertas,filas_en_listas&order=convocatoria'),
+      page('/rest/v1/v_semanas?select=convocatoria,fecha,ofertas,vacantes,sustituciones,refuerzos,adjudicadas,piden_ofertas,filas_en_listas,provisional&order=convocatoria')
+        .catch(function () { return page('/rest/v1/v_semanas?select=convocatoria,fecha,ofertas,vacantes,sustituciones,refuerzos,adjudicadas,piden_ofertas,filas_en_listas&order=convocatoria'); }),   // por si aún no se ha ejecutado 06_provisional.sql
       page('/rest/v1/cortes?select=convocatoria_id,cuerpo,grupo,personas,piden_ofertas,adjudicados,ultima_pos_adjudicada,ultima_pos_que_pide&order=convocatoria_id,cuerpo,grupo'),
       page('/rest/v1/convocatorias?select=id,numero&order=id')
     ]).then(function (r) { return build({ poblaciones: r[0], ofertas: r[1], semanas: r[2], cortes: r[3], convocatorias: r[4] }); });
@@ -167,7 +168,6 @@
     buscar: function (nombre) { return authed('POST', '/rest/v1/rpc/buscar_mi_fila', { json: { p_nombre: nombre } }); },
     confirmar: function (nombre, cuerpo, orden) { return authed('POST', '/rest/v1/rpc/confirmar_mi_fila', { json: { p_nombre: nombre, p_cuerpo: cuerpo, p_orden: orden } }); },
     posicion: function () { return authed('POST', '/rest/v1/rpc/mi_posicion', { json: {} }); },
-    anadirCuerpos: function () { return authed('POST', '/rest/v1/rpc/anadir_mis_cuerpos', { json: {} }); },
     historial: function () { return authed('POST', '/rest/v1/rpc/mi_historial', { json: {} }); },
     borrar: function () { return authed('POST', '/rest/v1/rpc/borrar_mi_cuenta', { json: {} }).then(function () { setSession(null); }); },
     me: function () {
@@ -183,18 +183,19 @@
     },
     /* ----- administración (solo funciona si tu cuenta está en la tabla admins; si no, el servidor lo rechaza) ----- */
     init: function () { loadSession(); hashDone = ENABLED ? readHash() : Promise.resolve(); return hashDone; },
-    adminReiniciar: function () { return authed('POST', '/rest/v1/rpc/admin_reiniciar_mi_cuenta', { json: {} }); },
     esAdmin: function () { return authed('POST', '/rest/v1/rpc/soy_admin', { json: {} }).then(function (r) { return r === true; }); },
     adminBase: function () {
       return Promise.all([
         page('/rest/v1/poblaciones?select=id,nombre,provincia&order=id'),
-        page('/rest/v1/convocatorias?select=id,anio,numero,fecha_publicacion,adjudicados_cargados,listado_cargado&order=id'),
+        page('/rest/v1/convocatorias?select=id,anio,numero,fecha_publicacion,adjudicados_cargados,listado_cargado,provisional&order=id'),
         page('/rest/v1/centros?select=nombre,poblacion_id&order=id')
       ]).then(function (r) { return { poblaciones: r[0], convocatorias: r[1], centros: r[2] }; });
     },
     adminPreparar: function (p) { return authed('POST', '/rest/v1/rpc/admin_preparar_semana', { json: { p: p } }); },
     adminSubirLista: function (cid, filas) { return authed('POST', '/rest/v1/rpc/admin_subir_lista', { json: { p_convocatoria: cid, p_filas: filas } }); },
     adminCerrar: function (cid, lista, avisos) { return authed('POST', '/rest/v1/rpc/admin_cerrar_semana', { json: { p_convocatoria: cid, p_lista: !!lista, p_avisos: avisos || [] } }); },
+    anadirCuerpos: function () { return authed('POST', '/rest/v1/rpc/anadir_mis_cuerpos', { json: {} }); },
+    adminReiniciar: function () { return authed('POST', '/rest/v1/rpc/admin_reiniciar_mi_cuenta', { json: {} }); },
     adminCargas: function () { return authed('POST', '/rest/v1/rpc/admin_ultimas_cargas', { json: {} }); },
     setZona: function (pid, on) {
       if (on) return authed('POST', '/rest/v1/zonas_interes?on_conflict=user_id,poblacion_id', { json: { user_id: uid(), poblacion_id: pid }, prefer: 'resolution=ignore-duplicates,return=minimal' });

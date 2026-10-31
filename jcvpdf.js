@@ -45,7 +45,7 @@ const TIPO = { 'vacante': 'vacante', 'sustitucion temporal': 'sustitucion', 'ref
 export const CUERPOS = ['TPA', 'GPA', 'AJ', 'MF', 'FE', 'AL'];
 const PROVINCIA_PDF = { alicante: 'Alicante', alacant: 'Alicante', valencia: 'Valencia', 'valència': 'Valencia',
   castellon: 'Castellón', 'castelló': 'Castellón', 'castellón': 'Castellón' };
-export const NOMBRE_TIPO = { ofertas: 'listado definitivo de ofertas', adjudicados: 'puestos adjudicados', completo: 'listado completo de adjudicaciones' };
+export const NOMBRE_TIPO = { ofertas: 'listado de ofertas (provisional o definitivo)', adjudicados: 'puestos adjudicados', completo: 'listado completo de adjudicaciones' };
 
 /* ---------------- extracción con pdf.js ---------------- */
 /* Coordenadas de "ventana" de la página (x hacia la derecha, y hacia abajo), también en páginas giradas. */
@@ -134,7 +134,7 @@ function agrupar(vals, tol = 1.5) {
 /* ---------------- tipo de PDF y cabecera ---------------- */
 export function tipoDePdf(textoPag1) {
   const n = mayus(textoPag1);
-  if (n.includes('LISTADO DEFINITIVO DE OFERTAS')) return 'ofertas';
+  if (n.includes('LISTADO DEFINITIVO DE OFERTAS') || n.includes('LISTADO PROVISIONAL DE OFERTAS')) return 'ofertas';
   if (n.includes('ADJUDICACION OFERTAS DE EMPLEO TEMPORAL') || n.includes('CONVOCATORIA/CONVOCATORIA')) return 'completo';
   if (/\bDNI\b/.test(n) && n.includes('NOMBRE Y APELLIDOS')) return 'adjudicados';
   return null;
@@ -336,7 +336,10 @@ export async function analizarArchivos(pdfjs, archivos, progreso = () => {}) {
     if (v.length > 1) throw new Parar(`Hay ${v.length} PDF distintos de tipo «${NOMBRE_TIPO[t]}»: ${v.map((x) => x.name).join(', ')}. Deja solo el de esta semana.`);
     S.archivos[t] = v[0].name;
   }
-  if (!por.ofertas) throw new Parar('Falta el PDF «listado definitivo de ofertas» (el 5.). Sin él no se puede cargar la semana.');
+  if (!por.ofertas) throw new Parar('Falta el PDF de ofertas: el «listado provisional» (el 2., del viernes) o el «listado definitivo» (el 5., del martes). Sin él no se puede cargar la semana.');
+  S.provisional = mayus(por.ofertas[0].txt1).includes('LISTADO PROVISIONAL DE OFERTAS');
+  if (S.provisional && (por.adjudicados || por.completo))
+    throw new Parar('El listado de ofertas es el PROVISIONAL (viernes), pero has añadido también PDF del martes. Carga el provisional solo, o el definitivo con los otros dos.');
 
   // 2. cabeceras
   const cab = {};
@@ -445,6 +448,7 @@ export function compararConBase(S, base) {
   }
   const convs = base.convocatorias;
   const ya = convs.find((c) => c.anio === S.anio && c.numero === S.numero) || null;
+  if (S.provisional && ya && !ya.provisional) R.errores.push(`La convocatoria ${S.numero}/${S.anio} ya tiene cargado el listado DEFINITIVO: no se sustituye por el provisional.`);
   const previas = convs.filter((c) => c.anio === S.anio && c.numero !== S.numero).sort((a, b) => a.numero - b.numero);
   const ultima = previas.length ? previas[previas.length - 1].numero : null;
   R.ya = ya;
@@ -469,7 +473,7 @@ export function compararConBase(S, base) {
 /* Lo que se envía a admin_preparar_semana. poblacionesNuevas: [{nombre, nombre_visible, provincia, lat, lon}] */
 export function construirPayload(S, poblacionesNuevas) {
   return {
-    anio: S.anio, numero: S.numero, fecha: S.fecha, hay_lista: !!(S.lista && S.lista.length),
+    anio: S.anio, numero: S.numero, fecha: S.fecha, provisional: !!S.provisional, hay_lista: !!(S.lista && S.lista.length),
     poblaciones: poblacionesNuevas,
     ofertas: S.ofertas.map((o) => ({ n_puesto: o.n_puesto, cuerpo: o.cuerpo, centro: o.centro, poblacion: o.poblacion, tipo: o.tipo, observaciones: o.observaciones })),
     adjudicaciones: S.adj ? S.adj.map((a) => ({ n_puesto: a.n_puesto, grupo: a.grupo })) : null

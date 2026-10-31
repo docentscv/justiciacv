@@ -86,7 +86,7 @@ function pantallaAdmin() {
   pinta(`
   <section class="card" id="c-subir">
     <div class="sec-h"><div><h2>Subir los PDF de la semana</h2>
-      <p class="hint" style="margin-top:4px">Cada martes, a partir de las 13:30. Elige los 3 PDF a la vez: el <b>5</b> (listado definitivo de ofertas), el <b>7</b> (puestos adjudicados) y el <b>8</b> (listado completo). Los reconoce por su contenido, no por el nombre.</p></div>
+      <p class="hint" style="margin-top:4px"><b>Viernes</b>: elige solo el PDF <b>2</b> (listado provisional de ofertas). <b>Martes</b>, a partir de las 13:30: elige los 3 a la vez, el <b>5</b> (listado definitivo de ofertas), el <b>7</b> (puestos adjudicados) y el <b>8</b> (listado completo). Los reconoce por su contenido, no por el nombre. (El robot lo hace solo; esta pantalla es el plan B.)</p></div>
       <div class="row"><span class="pill">${esc(ACC.email())}</span><button class="btn small" type="button" id="b-salir">Salir</button></div></div>
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Elegir los PDF de la semana">
       <input type="file" id="f-pdf" accept=".pdf,application/pdf" multiple hidden>

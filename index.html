@@ -288,6 +288,9 @@ details.acc .body { padding: 0 0 16px; display: grid; gap: 10px; max-width: 68ch
 .mp-list li:first-child { border-top: 0; padding-top: 0; }
 .mp-lc { font-weight: 600; overflow-wrap: anywhere; }
 .nem { display: grid; gap: 10px; margin: 22px 0; }
+.nem.flash { animation: nemflash 1.6s ease-out 1; }
+@keyframes nemflash { 0% { box-shadow: 0 0 0 4px var(--brand); } 100% { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { .nem.flash { animation: none; } }
 </style>
 
 <style>[hidden]{display:none!important}body{margin:0}</style>
