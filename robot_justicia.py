@@ -83,7 +83,11 @@ def main():
     spec = importlib.util.spec_from_file_location('importar_semana', AQUI / 'importar_semana.py')
     imp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(imp)
-    cod = imp.main([str(carpeta), '--si', '--solo-si-nuevo'])
+    args = [str(carpeta), '--si', '--solo-si-nuevo']
+    extra = AQUI / 'poblaciones_nuevas.csv'                          # poblaciones que aún no están en la base (con su provincia y coordenadas)
+    if extra.exists():
+        args += ['--poblaciones', str(extra)]
+    cod = imp.main(args)
     if cod == 10:
         print('\nSin novedades.')
         return 0
