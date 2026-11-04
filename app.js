@@ -485,7 +485,11 @@ var onProfile = function () {};
 var A = { mode: 'in', me: null, pos: null, hist: null, sel: 0, nombre: '', view: 'main', admin: null };
 var ESTADO = { no_pide: 'No pides ofertas esta semana', pide_sin_plaza: 'Has pedido ofertas esta semana y no te ha tocado ninguna', adjudicada: 'Te han adjudicado una oferta esta semana', adjudicada_otro_cuerpo: 'Tenías ya una adjudicación en otro cuerpo' };
 function cuNombre(c) { var k = CUKEYS.filter(function (x) { return x[0] === c; })[0]; return k ? k[1] : c; }
-function accRoot() { return $('#acc-root'); }
+function accRoot() {
+  var r = $('#acc-root');
+  if (r && !r.__aj) { r.__aj = 1; r.addEventListener('click', function (e) { var t = e.target.closest ? e.target.closest('[data-goaj]') : null; if (t) { e.preventDefault(); A.view = 'ajustes'; accLoad(); } }); }
+  return r;
+}
 function msg(f) { return f ? '<div class="msg ' + (f.err ? 'err' : 'ok') + '" role="' + (f.err ? 'alert' : 'status') + '">' + esc(f.err || f.ok) + '</div>' : ''; }
 function pidOfName(n) { if (!D.pid) return null; for (var i = 0; i < D.pobs.length; i++) if (dpob(D.pobs[i]) === n) return D.pid[i]; return null; }
 function pushFav(name, on) { if (ACC && ACC.loggedIn() && A.me) { var id = pidOfName(name); if (id != null) ACC.setZona(id, on)['catch'](function () {}); } }
@@ -674,8 +678,9 @@ function accAjustes(flash) {
       : '<p class="hint" style="margin-top:6px">Si quieres ver tu nombre arriba en este dispositivo, escríbelo aquí. Solo se guarda en este navegador, nunca en nuestros servidores.</p><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
     '<section class="card"><h3>Población</h3><p style="margin-top:8px"><b>' + esc(C.home) + '</b></p><p class="hint" style="margin-top:6px">Se elige una sola vez, al registrarte. ' + (A.admin ? 'Como administrador puedes cambiarla desde tu pantalla o en el modo prueba.' : 'Solo la puede cambiar un administrador.') + '</p></section>' +
     (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
+    '<section class="card" id="alerts-card"></section>' +
     accCard(true);
-  bindAccCard();
+  bindAccCard(); initAlertas();
   $('#aj-back').addEventListener('click', function () { A.view = 'main'; accLoad(); });
   var t = $('#aj-test'); if (t) t.addEventListener('click', function () { A.view = 'test'; accLoad(); });
   var ok = $('#nom-ok');
@@ -698,7 +703,7 @@ function accDash(flash) {
   var st = subState();
   var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.promo ? '<span class="pill ok">Gratis hasta el 31 dic 2026</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Acceso gratuito terminado</span>';
   var nom = nombreGuardado();
-  var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + '</p></div>' + chip + '</div>' +
+  var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + (nom ? '' : ' · <a href="#cuenta" data-goaj>Poner mi nombre</a>') + '</p></div>' + chip + '</div>' +
     msg(flash) + '</section>';
   if (!st.ok) return accPaywall(head);
   r.innerHTML = head + '<div class="card empty" role="status">Cargando tu posición…</div>';
@@ -732,7 +737,7 @@ function drawDash(head) {
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
     tableToggle('tbl-hist', ['Convocatoria', 'Fecha', 'Grupo', 'Puesto en el grupo', 'Estado'], hist.map(function (x) { return [x.convocatoria + '/2026', fmtD(x.fecha), x.grupo, x.posicion_en_grupo, ESTADO[x.estado] || x.estado]; })) + '</section>' +
-    '<section class="card" id="alerts-card"></section>' +
+    '<section class="card"><div class="sec-h"><h3>Avisos</h3><a class="btn small" href="#cuenta" data-goaj>Configurar</a></div><p class="hint">Recibe un aviso en el móvil cuando salgan ofertas o adjudicaciones. Se activa en Mi cuenta → Ajustes → Avisos.</p></section>' +
     '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
     '';
   if (__go) { var nc = $('#nem-card'); if (nc) { nc.classList.add('flash'); setTimeout(function () { nc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
@@ -751,7 +756,7 @@ function drawDash(head) {
     var sl = $('#c-home'); sl.focus();
     sl.addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); drawDash(head); });
   });
-  bindTables(r); bindAccCard(); initAlertas();
+  bindTables(r); bindAccCard();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
 }
