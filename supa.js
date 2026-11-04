@@ -170,11 +170,12 @@
     posicion: function () { return authed('POST', '/rest/v1/rpc/mi_posicion', { json: {} }); },
     historial: function () { return authed('POST', '/rest/v1/rpc/mi_historial', { json: {} }); },
     borrar: function () { return authed('POST', '/rest/v1/rpc/borrar_mi_cuenta', { json: {} }).then(function () { setSession(null); }); },
+    guardarNombre: function (n) { return authed('POST', '/rest/v1/rpc/guardar_mi_nombre', { json: { p_nombre: n } }); },
     me: function () {
       return Promise.all([
         authed('GET', '/rest/v1/mis_listas?select=cuerpo,confirmada'),
         authed('GET', '/rest/v1/suscripciones?select=prueba_inicio,prueba_fin,pagado_hasta,curso'),
-        authed('GET', '/rest/v1/perfiles?select=poblacion_base_id,radio_km'),
+        authed('GET', '/rest/v1/perfiles?select=poblacion_base_id,radio_km,nombre')['catch'](function () { return authed('GET', '/rest/v1/perfiles?select=poblacion_base_id,radio_km'); }),
         authed('GET', '/rest/v1/zonas_interes?select=poblacion_id')
       ]).then(function (r) { return { listas: r[0], suscripcion: r[1][0] || null, perfil: r[2][0] || null, zonas: r[3].map(function (z) { return z.poblacion_id; }) }; });
     },

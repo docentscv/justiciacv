@@ -546,7 +546,7 @@ function accAuth(flash) {
     '<p class="lead">Crea tu cuenta, escribe tu nombre una vez y la web encuentra tu fila en el listado oficial. Tú confirmas que eres tú, y nadie más ve tu nombre.</p></div><div class="card">' + form + '</div></section>' +
     pricing() +
     '<section class="card"><h2>Cómo se empieza</h2><div class="steps3" style="margin-top:12px"><div><b>1. Creas tu cuenta</b>Con tu correo y una contraseña.</div><div><b>2. Confirmas tu fila</b>Escribes tu nombre y la web te muestra tu cuerpo, grupo y puesto.</div><div><b>3. Lo usas gratis</b>Todo el área personal sin pagar hasta el 31 de diciembre de 2026.</div></div></section>' +
-    '<section class="callout"><b>Tu nombre.</b> Se usa solo para encontrar tu fila en el listado oficial. La web no guarda tu nombre: guarda un código que no se puede deshacer y que sirve para reconocer tu fila. Por delante de ti se muestran cifras, nunca nombres de otras personas. Puedes borrar tu cuenta y tus datos cuando quieras.</section>';
+    '<section class="callout"><b>Tu nombre.</b> Se usa solo para encontrar tu fila en el listado oficial. Se guarda en tu cuenta, y solo lo ves tú. Los listados de la web no guardan nombres: solo un código que no se puede deshacer y que sirve para reconocer tu fila. Por delante de ti se muestran cifras, nunca nombres de otras personas. Puedes borrar tu cuenta y tus datos cuando quieras.</section>';
   $$('button[data-amode]', r).forEach(function (b) { b.addEventListener('click', function () { A.mode = b.dataset.amode; accAuth(); }); });
   var fg = $('#a-forgot'); if (fg) fg.addEventListener('click', function () { A.mode = 'forgot'; accAuth(); });
   var bk = $('#a-back'); if (bk) bk.addEventListener('click', function () { A.mode = 'in'; accAuth(); });
@@ -579,6 +579,8 @@ function accLoad(flash) {
   syncAcct();
   Promise.all([ACC.me(), ACC.esAdmin()['catch'](function () { return false; })]).then(function (res) {
     var me = res[0]; A.me = me; A.admin = !!res[1]; applyMe(me);
+    var ln = nombreLocal();
+    if (ln && me.listas.length && !(me.perfil && me.perfil.nombre)) ACC.guardarNombre(ln).then(function () { if (!A.me.perfil) A.me.perfil = {}; A.me.perfil.nombre = ln; }, function () {});
     if (A.view === 'ajustes') return accAjustes(flash);
     if (A.view === 'test' && A.admin) return accAlta(flash, { test: true });
     A.view = 'main';
@@ -610,7 +612,7 @@ function accAlta(flash, opts) {
     msg(flash) +
     '<form class="form" id="n-f" novalidate style="margin-top:12px"><div class="field"><label for="n-nombre">Nombre y apellidos</label><input class="input" id="n-nombre" type="text" autocomplete="name" placeholder="Por ejemplo: María García López" required></div>' + homesHtml + '<div id="f-msg"></div><div class="row"><button class="btn primary" type="submit">Buscar mi fila</button>' + (test ? '<button class="btn" type="button" id="n-cancel">Cancelar</button>' : '') + '</div></form>' +
     '<div id="n-out" style="margin-top:14px;display:grid;gap:10px"></div></section>' +
-    '<section class="callout"><b>Tu nombre no se guarda en nuestros servidores.</b> Se convierte en un código que no se puede deshacer y se descarta; solo lo recuerda tu navegador, para mostrarlo en tu pantalla. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>';
+    '<section class="callout"><b>Tu nombre se guarda en tu cuenta, y solo lo ves tú.</b> Sirve para mostrarlo en tu pantalla. Para reconocer tu fila se usa un código que no se puede deshacer: los listados de la web no guardan nombres. Puedes escribirlo con o sin acentos y con los apellidos en cualquier orden. Solo aparecen los cuerpos que tuvieron ofertas esa semana. Tienes un máximo de 20 búsquedas al día.</section>';
   if (test) $('#n-cancel').addEventListener('click', function () { A.view = 'main'; accLoad(); });
   submitForm($('#n-f'), function () {
     var nombre = $('#n-nombre').value.trim(); A.nombre = nombre; $('#n-out').innerHTML = '';
@@ -632,7 +634,7 @@ function accAlta(flash, opts) {
         (test ? ACC.adminReiniciar() : Promise.resolve()).then(function () {
           return elegidas.reduce(function (p, x) { return p.then(function () { return ACC.confirmar(nombreTecleado, x.cuerpo, x.orden); }); }, Promise.resolve());
         }).then(function () {
-          guardaNombre(nombreTecleado); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
+          guardaNombre(nombreTecleado); ACC.guardarNombre(nombreTecleado)['catch'](function () {}); A.nombre = ''; var h = $('#n-home'); if (h && h.value) { C.home = h.value; store.set('acc', C); }
           var id = pidOfName(C.home), g = id != null ? ACC.saveProfile({ poblacion_base_id: id, radio_km: C.rad }) : Promise.resolve();
           return g['catch'](function () {}).then(function () { A.view = 'main'; accLoad({ ok: test ? 'Listo. Tu cuenta es ahora la de la persona que has buscado (modo prueba).' : 'Listo. Ya tienes tu área personal.' }); });
         }, function (e) { okb.disabled = false; okb.textContent = lbl; $('#f-msg').innerHTML = msg({ err: e.message }); });
@@ -641,8 +643,9 @@ function accAlta(flash, opts) {
   });
 }
 
-/* El nombre solo se guarda en ESTE navegador (localStorage), nunca en el servidor: el servidor solo conoce la huella. */
-function nombreGuardado() { var m = store.get('nom', {}); return (ACC && m[ACC.email()]) || ''; }
+/* El nombre se guarda en la cuenta (perfiles.nombre, solo lo ve su dueño) y, como copia, en este navegador. Los listados solo guardan huellas. */
+function nombreLocal() { var m = store.get('nom', {}); return (ACC && m[ACC.email()]) || ''; }
+function nombreGuardado() { return (A.me && A.me.perfil && A.me.perfil.nombre) || nombreLocal(); }
 function guardaNombre(n) { n = (n || '').replace(/\s+/g, ' ').trim(); if (!n || !ACC) return; var m = store.get('nom', {}); m[ACC.email()] = n; store.set('nom', m); }
 function olvidaNombre() { if (!ACC) return; var m = store.get('nom', {}); delete m[ACC.email()]; store.set('nom', m); }
 function bonito(n) {
@@ -673,9 +676,9 @@ function accAjustes(flash) {
   var r = accRoot(); if (!r) return;
   var nom = nombreGuardado();
   r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Ajustes</h2><p class="hint">' + esc(ACC.email()) + (A.admin ? ' · <b>Administrador</b>' : '') + '</p></div><button class="btn small" type="button" id="aj-back">← Volver a mi puesto</button></div>' + msg(flash) + '</section>' +
-    '<section class="card"><h3>Mi nombre en este dispositivo</h3>' + (nom
-      ? '<p style="margin-top:8px"><b>' + esc(bonito(nom)) + '</b></p><p class="hint" style="margin-top:6px">Solo se guarda en este navegador, nunca en nuestros servidores. ' + (A.admin ? 'Para cambiarlo, usa el modo prueba de más abajo.' : 'El nombre de la cuenta solo lo puede cambiar un administrador.') + '</p>'
-      : '<p class="hint" style="margin-top:6px">Si quieres ver tu nombre arriba en este dispositivo, escríbelo aquí. Solo se guarda en este navegador, nunca en nuestros servidores.</p><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
+    '<section class="card"><h3>Mi nombre</h3>' + (nom
+      ? '<p style="margin-top:8px"><b>' + esc(bonito(nom)) + '</b></p><p class="hint" style="margin-top:6px">Se guarda en tu cuenta y solo lo ves tú; sale arriba en cualquier dispositivo. ' + (A.admin ? 'Para cambiarlo, usa el modo prueba de más abajo.' : 'El nombre de la cuenta solo lo puede cambiar un administrador.') + '</p>'
+      : '<p class="hint" style="margin-top:6px">Escríbelo como aparece en el listado oficial y saldrá arriba en cualquier dispositivo. Se guarda en tu cuenta y solo lo ves tú.</p><div id="nom-msg" style="margin-top:8px"></div><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
     '<section class="card"><h3>Población</h3><p style="margin-top:8px"><b>' + esc(C.home) + '</b></p><p class="hint" style="margin-top:6px">Se elige una sola vez, al registrarte. ' + (A.admin ? 'Como administrador puedes cambiarla desde tu pantalla o en el modo prueba.' : 'Solo la puede cambiar un administrador.') + '</p></section>' +
     (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
     '<section class="card" id="alerts-card"></section>' +
@@ -686,7 +689,12 @@ function accAjustes(flash) {
   var ok = $('#nom-ok');
   if (ok) {
     var inp = $('#nom-in');
-    var guardar = function () { if (inp.value.trim().length < 3) return; guardaNombre(inp.value); accAjustes({ ok: 'Nombre guardado en este dispositivo.' }); };
+    var guardar = function () {
+      var v = inp.value.trim(); if (v.length < 3) return;
+      ok.disabled = true;
+      ACC.guardarNombre(v).then(function () { guardaNombre(v); if (A.me) { if (!A.me.perfil) A.me.perfil = {}; A.me.perfil.nombre = v.replace(/\s+/g, ' '); } accAjustes({ ok: 'Nombre guardado en tu cuenta.' }); },
+        function (e) { ok.disabled = false; $('#nom-msg').innerHTML = msg({ err: (e && e.message) || 'No se pudo guardar el nombre.' }); });
+    };
     ok.addEventListener('click', guardar); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
   }
 }
