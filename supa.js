@@ -196,6 +196,12 @@
     adminCerrar: function (cid, lista, avisos) { return authed('POST', '/rest/v1/rpc/admin_cerrar_semana', { json: { p_convocatoria: cid, p_lista: !!lista, p_avisos: avisos || [] } }); },
     anadirCuerpos: function () { return authed('POST', '/rest/v1/rpc/anadir_mis_cuerpos', { json: {} }); },
     adminReiniciar: function () { return authed('POST', '/rest/v1/rpc/admin_reiniciar_mi_cuenta', { json: {} }); },
+    alertas: function () { return authed('GET', '/rest/v1/alertas?select=nuevas_ofertas,cerca_del_corte,resumen_martes').then(function (r) { return r[0] || { nuevas_ofertas: true, cerca_del_corte: true, resumen_martes: false }; }); },
+    setAlertas: function (a) {
+      return authed('POST', '/rest/v1/alertas?on_conflict=user_id', { json: { user_id: uid(), nuevas_ofertas: !!a.nuevas_ofertas, cerca_del_corte: !!a.cerca_del_corte, resumen_martes: !!a.resumen_martes }, prefer: 'resolution=merge-duplicates,return=minimal' });
+    },
+    pushRegistrar: function (endpoint, p256dh, auth) { return authed('POST', '/rest/v1/rpc/registrar_push', { json: { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth } }); },
+    pushQuitar: function (endpoint) { return authed('POST', '/rest/v1/rpc/quitar_push', { json: { p_endpoint: endpoint } }); },
     adminCargas: function () { return authed('POST', '/rest/v1/rpc/admin_ultimas_cargas', { json: {} }); },
     setZona: function (pid, on) {
       if (on) return authed('POST', '/rest/v1/zonas_interes?on_conflict=user_id,poblacion_id', { json: { user_id: uid(), poblacion_id: pid }, prefer: 'resolution=ignore-duplicates,return=minimal' });

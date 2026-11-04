@@ -134,10 +134,13 @@ function bindFavs(root, rerender) {
     });
   });
 }
+function resPill(o) {
+  return provW && o.c === provW.c ? '<span class="pill">Provisional · aún sin adjudicar</span>' : o.a > 0 ? '<span class="pill ok">Adjudicada · grupo ' + o.a + '</span>' : o.a === 0 ? '<span class="pill warn">Sin cubrir</span>' : '<span class="pill">Sin dato de adjudicación</span>';
+}
 function offerCard(o, extra) {
   var det = o.obs ? sentence(o.obs) : '';
   if (o.tipo === 2) { var m = o.obs.match(/(\d{2})-(\d{2})-(\d{4})/); if (m) det = 'Hasta el ' + m[1] + '/' + m[2] + '/' + m[3] + ', con posibles prórrogas'; }
-  var res = provW && o.c === provW.c ? '<span class="pill">Provisional · aún sin adjudicar</span>' : o.a > 0 ? '<span class="pill ok">Adjudicada · grupo ' + o.a + '</span>' : o.a === 0 ? '<span class="pill warn">Sin cubrir</span>' : '<span class="pill">Sin dato de adjudicación</span>';
+  var res = resPill(o);
   return '<article class="offer"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span></div>' + starBtn(o.pob) + '</div>' +
     '<h3>' + esc(o.centro) + '</h3><div class="where"><span>' + esc(o.pob) + '</span>' + (o.prov !== 'Sin provincia' ? '<span>· ' + o.prov + '</span>' : '') + (extra ? '<span>· ' + extra + '</span>' : '') + '</div>' +
     (det ? '<p class="hint">' + esc(det) + '</p>' : '') +
@@ -399,7 +402,7 @@ function viewCuenta() {
     '<div class="field"><label for="c-pos">Puesto dentro del grupo</label><input class="input" id="c-pos" type="number" inputmode="numeric" min="1" step="1" value="' + esc(P.pos) + '"></div>' +
     '<div class="field"><label for="c-home">Mi población</label><select class="input" id="c-home">' + homes.map(function (h) { return '<option value="' + esc(h.n) + '"' + (h.n === C.home ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div></div></section>' +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
-    '<section class="card"><div class="sec-h"><h3>Alertas</h3><span class="pill">Próximamente</span></div><p class="hint">Avisos por correo, para no tener que entrar cada semana.</p>' +
+    '<section class="card"><div class="sec-h"><h3>Avisos</h3><span class="pill">Con tu cuenta</span></div><p class="hint">Avisos en tu móvil o navegador, para no tener que entrar cada semana. Se activan desde tu cuenta.</p>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Ofertas nuevas en mis poblaciones y mi cuerpo, cuando se publica el listado del viernes.</label>' +
     '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label>' +
     '<label class="alrt"><input type="checkbox" disabled> Resumen del martes con las adjudicaciones de mi grupo.</label></section>' +
@@ -729,9 +732,7 @@ function drawDash(head) {
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
     tableToggle('tbl-hist', ['Convocatoria', 'Fecha', 'Grupo', 'Puesto en el grupo', 'Estado'], hist.map(function (x) { return [x.convocatoria + '/2026', fmtD(x.fecha), x.grupo, x.posicion_en_grupo, ESTADO[x.estado] || x.estado]; })) + '</section>' +
-    '<section class="card"><div class="sec-h"><h3>Alertas</h3><span class="pill">Próximamente</span></div><p class="hint">Avisos por correo, para no tener que entrar cada semana.</p>' +
-    '<label class="alrt"><input type="checkbox" checked disabled> Ofertas nuevas en mis poblaciones y mi cuerpo, cuando se publica el listado del viernes.</label>' +
-    '<label class="alrt"><input type="checkbox" checked disabled> Aviso cuando el último corte se acerque a mi puesto.</label></section>' +
+    '<section class="card" id="alerts-card"></section>' +
     '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
     '';
   if (__go) { var nc = $('#nem-card'); if (nc) { nc.classList.add('flash'); setTimeout(function () { nc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
@@ -750,9 +751,67 @@ function drawDash(head) {
     var sl = $('#c-home'); sl.focus();
     sl.addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); drawDash(head); });
   });
-  bindTables(r); bindAccCard();
+  bindTables(r); bindAccCard(); initAlertas();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
+}
+
+/* ---- Avisos (Web Push) ---- */
+var VAPID_PUBLIC = 'BAO1_DVN1NDl4T8yerLBlxq5eZK0glyG0O0XZn5RC1cOAf0btGzCELLDUZYiicp_8A1j4T_ZvDc71US2UKGVGfk';
+function b64u2u8(t) { var p = '='.repeat((4 - t.length % 4) % 4), b = atob((t + p).replace(/-/g, '+').replace(/_/g, '/')), a = new Uint8Array(b.length); for (var i = 0; i < b.length; i++) a[i] = b.charCodeAt(i); return a; }
+function pushSoportado() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+function esIos() { return /iPhone|iPad|iPod/.test(navigator.userAgent) && !(window.navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)); }
+function pushActual() {
+  if (!pushSoportado()) return Promise.resolve(null);
+  return navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.pushManager.getSubscription() : null; })['catch'](function () { return null; });
+}
+function initAlertas() {
+  var box = $('#alerts-card'); if (!box || !ACC) return;
+  var al = { nuevas_ofertas: true, cerca_del_corte: true, resumen_martes: false }, sub = null, nota = '';
+  function pinta() {
+    var perm = pushSoportado() ? Notification.permission : 'unsupported';
+    var pill = sub ? '<span class="pill ok">Activados en este dispositivo</span>' : perm === 'denied' ? '<span class="pill warn">Bloqueados en el navegador</span>' : perm === 'unsupported' ? '<span class="pill">No disponible aquí</span>' : '<span class="pill">Desactivados</span>';
+    var ayuda = perm === 'unsupported' ? (esIos() ? 'En iPhone y iPad los avisos solo funcionan si añades la web a la pantalla de inicio (Compartir → Añadir a pantalla de inicio) y la abres desde ahí.' : 'Este navegador no permite avisos. Prueba con Chrome o con la app de Android.') : perm === 'denied' ? 'Has bloqueado los avisos de esta web. Para activarlos, permite las notificaciones en los ajustes del navegador o de la app y vuelve aquí.' : '';
+    box.innerHTML = '<div class="sec-h"><h3>Avisos</h3>' + pill + '</div><p class="hint">Te avisamos en este dispositivo para que no tengas que entrar cada semana. Sin correos ni publicidad.</p>' +
+      (ayuda ? '<p class="hint" style="margin-top:6px">' + esc(ayuda) + '</p>' : '') +
+      '<div class="row" style="margin:10px 0">' + (perm === 'unsupported' || perm === 'denied' ? '' : sub ? '<button class="btn small" type="button" id="al-test">Probar aviso</button><button class="btn small" type="button" id="al-off">Desactivar en este dispositivo</button>' : '<button class="btn primary" type="button" id="al-on">Activar avisos en este dispositivo</button>') + '</div>' +
+      '<label class="alrt"><input type="checkbox" id="al-n"' + (al.nuevas_ofertas ? ' checked' : '') + '> Ofertas nuevas cerca de mí o en mis zonas, cuando se publica el listado del viernes.</label>' +
+      '<label class="alrt"><input type="checkbox" id="al-c"' + (al.cerca_del_corte ? ' checked' : '') + '> Aviso cuando el último adjudicado se acerque a mi puesto, y si me adjudican.</label>' +
+      '<label class="alrt"><input type="checkbox" id="al-r"' + (al.resumen_martes ? ' checked' : '') + '> Resumen del martes con las adjudicaciones de mi grupo y mi puesto.</label>' +
+      '<div id="al-msg" style="margin-top:8px">' + nota + '</div>';
+    [['al-n', 'nuevas_ofertas'], ['al-c', 'cerca_del_corte'], ['al-r', 'resumen_martes']].forEach(function (x) {
+      var el = $('#' + x[0], box); if (!el) return;
+      el.addEventListener('change', function () {
+        al[x[1]] = el.checked; nota = '';
+        ACC.setAlertas(al).then(function () { $('#al-msg', box).innerHTML = msg({ ok: 'Guardado.' }); }, function (e) { $('#al-msg', box).innerHTML = msg({ err: e.message || 'No se pudo guardar.' }); });
+      });
+    });
+    var on = $('#al-on', box), off = $('#al-off', box), tst = $('#al-test', box);
+    if (on) on.addEventListener('click', function () {
+      on.disabled = true; on.textContent = 'Activando…';
+      Notification.requestPermission().then(function (p) {
+        if (p !== 'granted') throw new Error('No has dado permiso para las notificaciones.');
+        return navigator.serviceWorker.ready;
+      }).then(function (reg) {
+        return reg.pushManager.getSubscription().then(function (s) { return s || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64u2u8(VAPID_PUBLIC) }); });
+      }).then(function (s) {
+        var j = s.toJSON(); sub = s;
+        return ACC.pushRegistrar(j.endpoint, j.keys.p256dh, j.keys.auth).then(function () { return ACC.setAlertas(al); });
+      }).then(function () { nota = msg({ ok: 'Avisos activados en este dispositivo.' }); pinta(); }, function (e) {
+        sub = null; nota = msg({ err: e.message || 'No se pudieron activar los avisos.' }); pinta();
+      });
+    });
+    if (off) off.addEventListener('click', function () {
+      off.disabled = true; var ep = sub && sub.endpoint;
+      Promise.resolve(ep ? ACC.pushQuitar(ep)['catch'](function () {}) : null).then(function () { return sub ? sub.unsubscribe()['catch'](function () {}) : null; }).then(function () { sub = null; nota = msg({ ok: 'Avisos desactivados en este dispositivo.' }); pinta(); });
+    });
+    if (tst) tst.addEventListener('click', function () {
+      navigator.serviceWorker.ready.then(function (reg) { return reg.showNotification('JusticiaCV', { body: 'Así te llegarán los avisos.', icon: 'icons/icon-192.png', tag: 'jcv-prueba' }); })
+        .then(function () { $('#al-msg', box).innerHTML = msg({ ok: 'Aviso de prueba enviado.' }); }, function () { $('#al-msg', box).innerHTML = msg({ err: 'No se pudo mostrar el aviso de prueba.' }); });
+    });
+  }
+  pinta();
+  Promise.all([ACC.alertas()['catch'](function () { return al; }), pushActual()]).then(function (r) { al = r[0]; sub = r[1]; pinta(); });
 }
 function histChart(host, rows) {
   if (!host) return;
@@ -866,7 +925,7 @@ function afterGuia() {
 
 /* ---------- router ---------- */
 /* ---------- Mapa (mapa propio con teselas de OpenStreetMap; sin librerías externas) ---------- */
-var MP = { cu: 'all', tipo: 'all', per: 'last', rad: 0, home: null, c: null, z: null, sel: null };
+var MP = { cu: 'all', tipo: 'all', est: 'all', per: 'last', rad: 0, home: null, c: null, z: null, sel: null };
 var TILE_URL = 'https://tile.openstreetmap.org/', ZMIN = 6, ZMAX = 13;
 function mercX(lon, z) { return (lon + 180) / 360 * 256 * Math.pow(2, z); }
 function mercY(lat, z) { var s = Math.sin(rad(Math.max(-85, Math.min(85, lat)))); return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * 256 * Math.pow(2, z); }
@@ -874,13 +933,16 @@ function unX(x, z) { return x / (256 * Math.pow(2, z)) * 360 - 180; }
 function unY(y, z) { var n = Math.PI - 2 * Math.PI * y / (256 * Math.pow(2, z)); return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))); }
 function mapHome() { if (MP.home == null) MP.home = homeIdx(); return MP.home; }
 function mapPoints() {
-  var by = {}, hxy = MP.rad ? D.xy[mapHome()] : null, from = MP.per === 'last' ? TOPC : TOPC - 3;
+  var by = {}, hxy = MP.rad ? D.xy[mapHome()] : null, from = MP.per === 'last' ? TOPC : MP.per === 'adj' ? last.c : TOPC - 3, to = MP.per === 'adj' ? last.c : TOPC;
   allOffers.forEach(function (o) {
-    if (o.c < from || o.c > TOPC) return;
+    if (o.c < from || o.c > to) return;
+    if (MP.est === 'adj' && !(o.a > 0)) return;
+    if (MP.est === 'sin' && o.a !== 0) return;
     if (MP.cu !== 'all' && o.cu !== MP.cu) return;
     if (MP.tipo !== 'all' && o.tipo !== MP.tipo) return;
     if (hxy && km(hxy, D.xy[o.pi]) > MP.rad) return;
-    var p = by[o.pi] || (by[o.pi] = { pi: o.pi, pob: o.pob, prov: o.prov, n: 0, t: [0, 0, 0], list: [] });
+    var p = by[o.pi] || (by[o.pi] = { pi: o.pi, pob: o.pob, prov: o.prov, n: 0, na: 0, ns: 0, t: [0, 0, 0], list: [] });
+    if (o.a > 0) p.na++; else if (o.a === 0) p.ns++;
     p.n++; if (o.tipo >= 0 && o.tipo < 3) p.t[o.tipo]++; p.list.push(o);
   });
   return Object.keys(by).map(function (k) { return by[k]; }).sort(function (a, b) { return b.n - a.n || a.pob.localeCompare(b.pob, 'es'); });
@@ -900,16 +962,16 @@ function mapaCerrado() { return !!(ACC && !(ACC.loggedIn && ACC.loggedIn())); } 
 function viewMapa() {
   if (mapaCerrado()) return '<section class="card" id="mapa-cerrado"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Mira dónde salen las ofertas de la semana, cerca de ti y por cuerpo.</p></div><span class="pill">Solo con cuenta</span></div>' +
     '<p style="margin-top:12px">Para ver el mapa tienes que estar registrado. Es gratis hasta el 31 de diciembre de 2026.</p><div class="row" style="margin-top:12px"><button class="btn primary" type="button" id="mp-up">Crear cuenta gratis</button><button class="btn" type="button" id="mp-in">Ya tengo cuenta · Entrar</button></div></section>';
-  var pts = mapPoints(), tot = pts.reduce(function (s, p) { return s + p.n; }, 0);
+  var pts = mapPoints(), tot = pts.reduce(function (s, p) { return s + p.n; }, 0), nAdj = pts.reduce(function (s, p) { return s + p.na; }, 0), nSin = pts.reduce(function (s, p) { return s + p.ns; }, 0);
   var sel = function (k, label, arr) { return '<div class="field"><label for="mf-' + k + '">' + label + '</label><select class="input" id="mf-' + k + '" data-mf="' + k + '">' + arr.map(function (x) { return '<option value="' + x[0] + '"' + (String(MP[k]) === String(x[0]) ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>'; };
   var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
   var mx = pts.length ? pts[0].n : 1;
-  return '<section class="card"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Cada círculo es una población: el número son sus ofertas y el color, el tipo. Pulsa uno para verlas.</p></div></div>' +
-    '<div class="mpf" style="margin-top:12px">' + sel('per', 'Periodo', [['last', provW ? 'Esta semana (provisional)' : 'Esta semana'], ['4', 'Últimas 4 semanas']]) +
+  return '<section class="card"><div class="sec-h"><div><h2>Mapa de ofertas</h2><p class="hint">Cada círculo es una población: el número son sus ofertas y el color, el tipo. Pulsa uno para ver cada oferta y si se adjudicó o quedó sin cubrir. Con «Resultado» ves solo las adjudicadas o las que no se cubrieron.</p></div></div>' +
+    '<div class="mpf" style="margin-top:12px">' + sel('per', 'Periodo', [['last', provW ? 'Esta semana (provisional)' : 'Esta semana']].concat(provW ? [['adj', 'Última adjudicación (conv. ' + last.c + ')']] : [], [['4', 'Últimas 4 semanas']])) + sel('est', 'Resultado', [['all', 'Todas'], ['adj', 'Adjudicadas'], ['sin', 'Sin cubrir']]) +
     sel('cu', 'Cuerpo', [['all', 'Todos']].concat(CUCHIPS)) + sel('tipo', 'Tipo', [['all', 'Todos'], [0, 'Vacante'], [1, 'Sustitución'], [2, 'Refuerzo']]) +
     sel('rad', 'Distancia', [[0, 'Sin límite'], [15, 'Hasta 15 km'], [30, 'Hasta 30 km'], [60, 'Hasta 60 km'], [100, 'Hasta 100 km']]) +
     (MP.rad ? '<div class="field"><label for="mp-home">Desde</label><select class="input" id="mp-home">' + homes.map(function (h) { return '<option value="' + h.i + '"' + (h.i === mapHome() ? ' selected' : '') + '>' + esc(h.n) + '</option>'; }).join('') + '</select></div>' : '') + '</div></section>' +
-    '<section class="card" style="padding:12px"><div class="sec-h" style="padding:2px 4px 10px"><p style="margin:0"><b class="num">' + tot + '</b> ' + (tot === 1 ? 'oferta' : 'ofertas') + ' en <b class="num">' + pts.length + '</b> ' + (pts.length === 1 ? 'población' : 'poblaciones') + '</p>' +
+    '<section class="card" style="padding:12px"><div class="sec-h" style="padding:2px 4px 10px"><p style="margin:0"><b class="num">' + tot + '</b> ' + (tot === 1 ? 'oferta' : 'ofertas') + ' en <b class="num">' + pts.length + '</b> ' + (pts.length === 1 ? 'población' : 'poblaciones') + (nAdj + nSin ? ' · <b class="num">' + nAdj + '</b> ' + (nAdj === 1 ? 'adjudicada' : 'adjudicadas') + ' · <b class="num">' + nSin + '</b> sin cubrir' : '') + '</p>' +
     '<div class="legend">' + TIP.map(function (t) { return '<span><i class="dot d-' + t.cls + '"></i>' + t.n + '</span>'; }).join('') + (MP.rad ? '<span><i class="dot" style="background:var(--brand)"></i>Desde aquí</span>' : '') + '</div></div>' +
     '<div class="map" id="map" role="group" tabindex="0" aria-label="Mapa de ofertas. Flechas para moverlo, más y menos para el zoom."><div class="mp-tiles"></div><div class="mp-mk"></div>' +
     '<div class="mp-ctl"><button type="button" data-mc="in" aria-label="Acercar">+</button><button type="button" data-mc="out" aria-label="Alejar">−</button><button type="button" class="txt" data-mc="fit" aria-label="Ver todas las ofertas" title="Ver todas">Todo</button></div>' +
@@ -992,8 +1054,8 @@ function afterMapa() {
   }
   function panBy(dx, dy) { var z = MP.z; MP.c = [Math.max(-80, Math.min(80, unY(mercY(MP.c[0], z) + dy, z))), unX(mercX(MP.c[1], z) + dx, z)]; draw(); }
   function popHtml(p) {
-    return '<div class="mp-ph"><div><b>' + esc(p.pob) + '</b><div class="hint">' + (p.prov !== 'Sin provincia' ? esc(p.prov) + ' · ' : '') + p.n + (p.n === 1 ? ' oferta' : ' ofertas') + '</div></div><div class="row" style="flex-wrap:nowrap;gap:2px">' + starBtn(p.pob) + '<button type="button" class="mp-x" data-mc="close" aria-label="Cerrar">×</button></div></div>' +
-      '<ul class="mp-list">' + p.list.map(function (o) { return '<li><span class="mp-lc">' + esc(o.centro) + '</span><span class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + (o.c !== TOPC ? '<span class="pill">Conv. ' + o.c + '</span>' : (provW ? '<span class="pill">Provisional</span>' : '')) + '</span></li>'; }).join('') + '</ul>' +
+    return '<div class="mp-ph"><div><b>' + esc(p.pob) + '</b><div class="hint">' + (p.prov !== 'Sin provincia' ? esc(p.prov) + ' · ' : '') + p.n + (p.n === 1 ? ' oferta' : ' ofertas') + (p.na + p.ns ? ' · ' + p.na + (p.na === 1 ? ' adjudicada' : ' adjudicadas') + ' · ' + p.ns + ' sin cubrir' : '') + '</div></div><div class="row" style="flex-wrap:nowrap;gap:2px">' + starBtn(p.pob) + '<button type="button" class="mp-x" data-mc="close" aria-label="Cerrar">×</button></div></div>' +
+      '<ul class="mp-list">' + p.list.map(function (o) { return '<li><span class="mp-lc">' + esc(o.centro) + '</span><span class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + (o.c !== TOPC ? '<span class="pill">Conv. ' + o.c + '</span>' : '') + resPill(o) + '</span></li>'; }).join('') + '</ul>' +
       '<div class="row"><button type="button" class="btn small" data-mc="ver">Ver en Ofertas</button>' + (NEM ? '<button type="button" class="btn small primary" data-mc="pedir">Pedir plaza · Mi cuenta</button>' : '') + '</div>';
   }
   function select(pi, center) {
