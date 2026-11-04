@@ -1,0 +1,37 @@
+# JusticiaCV · robot de carga. Se ejecuta solo viernes y martes, y a mano desde la pestaña Actions.
+name: Robot Justicia
+
+on:
+  schedule:
+    # Horas en UTC (en invierno Madrid = UTC+1, en verano UTC+2). Se repite a menudo porque no se sabe la hora exacta de publicación.
+    - cron: '10 9-19 * * 5'            # viernes, cada hora: listado provisional de ofertas
+    - cron: '5,35 10-15 * * 2'         # martes, cada media hora: los 3 PDF definitivos
+    - cron: '20 7,12 * * 3,4'          # miércoles y jueves: por si algo llegó tarde
+  workflow_dispatch:
+
+concurrency:
+  group: robot-justicia
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  cargar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar librerías
+        run: pip install requests pypdf pdfplumber pywebpush
+      - name: Mirar la web de Justicia y cargar lo nuevo
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python robot_justicia.py

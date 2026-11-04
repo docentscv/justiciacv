@@ -8,6 +8,7 @@ si traen algo que la base de datos aún no tiene, los carga con importar_semana.
   martes   -> 5. listado definitivo + 7. adjudicados + 8. listado completo
 Es un script normal (no es una IA) y se identifica con su User-Agent. Pide solo la página y los PDF publicados.
 
+Después de cada pasada llama a avisos.py (avisos al móvil y Telegram, una sola vez por convocatoria).
 Códigos de salida: 0 = hecho o nada que hacer · 1 = algo ha fallado (GitHub te avisa por correo).
 Variables: SUPABASE_URL, SUPABASE_SERVICE_KEY (en GitHub: Settings > Secrets and variables > Actions).
 """
@@ -53,6 +54,18 @@ def enlaces_pdf(html):
     return out
 
 
+def avisos():
+    """Después de cada pasada: avisos al móvil y Telegram si toca (una sola vez por convocatoria)."""
+    try:
+        spec = importlib.util.spec_from_file_location('avisos', AQUI / 'avisos.py')
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.main()
+    except Exception as e:                                              # noqa: BLE001
+        print(f'AVISOS: ha fallado ({type(e).__name__}: {str(e)[:200]}). La carga de datos no se ve afectada.')
+        return 1
+
+
 def main():
     if not os.environ.get('SUPABASE_URL') or not os.environ.get('SUPABASE_SERVICE_KEY'):
         print('ERROR: faltan los secretos SUPABASE_URL y SUPABASE_SERVICE_KEY en GitHub.')
@@ -68,7 +81,7 @@ def main():
         print('  -', n)
     if not pdfs:
         print('No hay PDF de listados publicados ahora mismo (o la página ha cambiado de formato). Nada que hacer.')
-        return 0
+        return avisos()
     carpeta = Path(tempfile.mkdtemp(prefix='jcv_'))
     for n, u in pdfs:
         try:
@@ -90,10 +103,10 @@ def main():
     cod = imp.main(args)
     if cod == 10:
         print('\nSin novedades.')
-        return 0
+        return avisos()
     if cod == 0:
         print('\nCARGA HECHA.')
-        return 0
+        return avisos()
     print(f'\nEl importador ha terminado con código {cod}: revisa el mensaje de arriba. Puedes cargar los PDF a mano en admin.html.')
     return 1
 
