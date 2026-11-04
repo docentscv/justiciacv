@@ -26,9 +26,13 @@ jobs:
         with:
           python-version: '3.12'
       - name: Instalar librerías
-        run: pip install requests pypdf pdfplumber
+        run: pip install requests pypdf pdfplumber pywebpush
       - name: Mirar la web de Justicia y cargar lo nuevo
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python robot_justicia.py
+
