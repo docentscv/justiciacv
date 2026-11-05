@@ -1221,7 +1221,7 @@ $('#theme').addEventListener('click', function () {
   var dark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
   theme = dark ? 'light' : 'dark'; store.set('theme', theme); applyTheme(theme);
 });
-$('#foot').innerHTML = 'JusticiaCV es una web independiente y no oficial. Los datos proceden de los listados publicados por la Conselleria de Justicia (convocatorias 1 a ' + last.c + '/2026, hasta el ' + fmtD(last.f) + ') y se muestran agregados, sin nombres ni DNI. No sustituyen a la información oficial: contrasta siempre con el PDF original. <a href="politica-privacidad.html">Política de privacidad</a> · <a href="aviso-legal.html">Aviso legal</a>';
+$('#foot').innerHTML = 'JusticiaCV es una web independiente y no oficial. Los datos proceden de los listados publicados por la Conselleria de Justicia (convocatorias 1 a ' + last.c + '/2026, hasta el ' + fmtD(last.f) + ') y se muestran agregados, sin nombres ni DNI. No sustituyen a la información oficial: contrasta siempre con el PDF original en la <a href="https://cjusticia.gva.es/es/web/justicia/adjudicacio-ofertes-ocupacio" target="_blank" rel="noopener">web oficial de la Conselleria de Justicia</a> (<a href="https://cjusticia.gva.es/es/web/justicia/convocatories-anteriors" target="_blank" rel="noopener">convocatorias anteriores</a>). <a href="politica-privacidad.html">Política de privacidad</a> · <a href="aviso-legal.html">Aviso legal</a>';
 lastRoute = location.hash || '#inicio';
 render();
 })();
