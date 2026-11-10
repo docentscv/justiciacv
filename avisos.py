@@ -6,15 +6,21 @@ Lo llama robot_justicia.py después de cada pasada. Mira la última convocatoria
   - si es el listado PROVISIONAL del viernes  -> aviso «ofertas» (nuevas ofertas en tus zonas)
   - si ya tiene adjudicados y listado completo -> aviso «martes» (resumen / cerca del corte)
 Solo envía una vez cada aviso por convocatoria (lo apunta en la tabla avisos_enviados).
-Envía: avisos al móvil/navegador (Web Push, a quien los haya activado) y, si están los secretos, un mensaje al canal de Telegram.
+Envía: avisos al móvil/navegador (Web Push, a quien los haya activado) y, si están los secretos, una TARJETA (imagen + botones)
+al canal de Telegram (telegram_tarjetas.py). Si la tarjeta fallase, manda el mensaje de texto de siempre.
 Variables: SUPABASE_URL, SUPABASE_SERVICE_KEY, VAPID_PRIVATE_KEY (obligatoria para los avisos al móvil),
            VAPID_SUBJECT (opcional), TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID (opcionales), JCV_WEB (opcional).
 No imprime nombres ni datos personales: solo cuántos avisos se envían.
 """
 import json, os, sys
+from datetime import datetime
+from pathlib import Path
 
 WEB = os.environ.get('JCV_WEB', 'https://docentscv.github.io/justiciacv/')
 SUJETO = os.environ.get('VAPID_SUBJECT', 'mailto:DocentsCV@gmail.com')
+AQUI = Path(__file__).resolve().parent
+if str(AQUI) not in sys.path:
+    sys.path.insert(0, str(AQUI))                    # para poder importar telegram_tarjetas.py (robot_justicia.py carga este archivo por ruta)
 
 
 def _cab():
@@ -58,6 +64,84 @@ def cifras(conv_id):
     return len(f), adj
 
 
+# ---------- desglose para la tarjeta (tipo, cuerpo, provincia, grupo). Tolerante: lo que no encuentre queda a 0 ----------
+def _pick(o, *claves):
+    for k in claves:
+        if k in o and o[k] is not None:
+            return o[k]
+    return None
+
+
+def _tipo(v):
+    if isinstance(v, bool) or v is None:
+        return None
+    if isinstance(v, int):
+        return {0: 'v', 1: 's', 2: 'r'}.get(v)
+    t = str(v).lower()
+    return 'v' if t.startswith('vac') else 's' if t.startswith('sus') else 'r' if t.startswith('ref') else None
+
+
+def _cuerpo(v):
+    if v is None or isinstance(v, bool):
+        return None
+    if isinstance(v, int):
+        return {0: 'TPA', 1: 'GPA', 2: 'AJ', 3: 'MF'}.get(v)
+    t = str(v).strip().upper()
+    if t in ('TPA', 'GPA', 'AJ', 'MF'):
+        return t
+    t = t.lower()
+    return 'TPA' if 'tramit' in t else 'GPA' if 'gesti' in t else 'AJ' if 'auxil' in t else 'MF' if 'forens' in t else None
+
+
+def _prov(v):
+    if isinstance(v, list):
+        v = v[0] if v else None
+    if isinstance(v, dict):
+        v = _pick(v, 'provincia', 'provincia_nombre')
+    if not v:
+        return None
+    t = str(v).lower()
+    return 'Alicante' if 'alic' in t else 'Castellón' if 'cast' in t else 'Valencia' if 'val' in t else None
+
+
+def desglose(conv_id):
+    d = {'v': 0, 's': 0, 'r': 0, 'cuerpos': {}, 'provs': {}, 'grupos': {}, 'sin_cubrir_pobs': []}
+    filas = None
+    for sel in ('*,adjudicaciones(grupo),poblaciones(nombre,provincia)', '*,adjudicaciones(grupo)', '*'):
+        try:
+            filas = _api('GET', f'ofertas?select={sel}&convocatoria_id=eq.{conv_id}&limit=5000')
+            break
+        except RuntimeError:
+            continue
+    if not filas:
+        return d
+    for o in filas:
+        t = _tipo(_pick(o, 'tipo', 'tipo_oferta', 'tipo_id'))
+        if t:
+            d[t] += 1
+        cu = _cuerpo(_pick(o, 'cuerpo', 'cuerpo_codigo', 'cuerpo_id', 'denominacion'))
+        if cu:
+            d['cuerpos'][cu] = d['cuerpos'].get(cu, 0) + 1
+        pv = _prov(_pick(o, 'poblaciones', 'provincia'))
+        if pv:
+            d['provs'][pv] = d['provs'].get(pv, 0) + 1
+        adj = o.get('adjudicaciones')
+        if isinstance(adj, dict):
+            adj = [adj]
+        for a in adj or []:
+            g = a.get('grupo') if isinstance(a, dict) else None
+            if g:
+                d['grupos'][g] = d['grupos'].get(g, 0) + 1
+        if isinstance(adj, list) and not adj:
+            p = o.get('poblaciones')
+            p = p[0] if isinstance(p, list) and p else p
+            nom = p.get('nombre') if isinstance(p, dict) else None
+            if nom and nom not in d['sin_cubrir_pobs']:
+                d['sin_cubrir_pobs'].append(nom)
+    print(f'Desglose para la tarjeta: tipos {d["v"]}/{d["s"]}/{d["r"]} · cuerpos {sum(d["cuerpos"].values())} · provincias {sum(d["provs"].values())} (de {len(filas)} ofertas).')
+    return d
+
+
 def texto_telegram(c, tipo):
     n, adj = cifras(c['id'])
     num = c['numero']
@@ -80,6 +164,26 @@ def enviar_telegram(texto):
                       json={'chat_id': chat, 'text': texto, 'disable_web_page_preview': True}, timeout=30)
     print('Telegram:', 'enviado' if r.ok else f'ERROR HTTP {r.status_code}')
     return 1 if r.ok else 0
+
+
+def enviar_telegram_tarjeta(c, tipo):
+    """Tarjeta (imagen + pie + botones). Si algo falla, cae al mensaje de texto de siempre."""
+    if not os.environ.get('TELEGRAM_BOT_TOKEN') or not os.environ.get('TELEGRAM_CHAT_ID'):
+        print('Telegram: sin configurar (opcional).')
+        return 0
+    try:
+        from telegram_tarjetas import tarjeta_provisional, tarjeta_adjudicacion, enviar_tarjeta
+        n, adj = cifras(c['id'])
+        datos = {**desglose(c['id']), 'c': c['numero'], 'of': n, 'adj': adj, 'f': datetime.now().date()}
+        png, pie, kb = (tarjeta_provisional if tipo == 'ofertas' else tarjeta_adjudicacion)(datos)
+        res = enviar_tarjeta(png, pie, kb)
+        if res.get('ok'):
+            print('Telegram: tarjeta enviada')
+            return 1
+        raise RuntimeError(str(res)[:150])
+    except Exception as e:                                               # noqa: BLE001
+        print(f'Telegram: la tarjeta ha fallado ({type(e).__name__}: {str(e)[:150]}); se manda el mensaje de texto.')
+        return enviar_telegram(texto_telegram(c, tipo))
 
 
 def enviar_push(filas, url_hash):
@@ -133,12 +237,14 @@ def main(simulacro=False):
     if simulacro:
         for f in filas:
             print('  [simulacro]', f['titulo'], '|', f['cuerpo'].replace('\n', ' / '))
+        d = desglose(c['id'])
+        print('  [simulacro] desglose:', json.dumps(d, ensure_ascii=False))
         return 0
     if filas and not os.environ.get('VAPID_PRIVATE_KEY'):
         print('Falta el secreto VAPID_PRIVATE_KEY en GitHub: no se envía nada todavía (se enviará cuando esté).')
         return 0
     ok, muertos = enviar_push(filas, '#ofertas' if tipo == 'ofertas' else '#cuenta') if filas else (0, 0)
-    tg = enviar_telegram(texto_telegram(c, tipo))
+    tg = enviar_telegram_tarjeta(c, tipo)
     if filas and not ok and os.environ.get('VAPID_PRIVATE_KEY'):
         print('No se ha podido enviar ningún aviso; no se marca como enviado, se reintentará en la próxima pasada.')
         return 1
