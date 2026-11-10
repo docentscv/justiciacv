@@ -8,6 +8,11 @@ on:
     - cron: '5,35 10-15 * * 2'         # martes, cada media hora: los 3 PDF definitivos
     - cron: '20 7,12 * * 3,4'          # miércoles y jueves: por si algo llegó tarde
   workflow_dispatch:
+    inputs:
+      reenviar_telegram:
+        description: 'Reenviar solo la tarjeta de Telegram de la última convocatoria (no manda avisos al móvil ni marca nada)'
+        type: boolean
+        default: false
 
 concurrency:
   group: robot-justicia
@@ -25,8 +30,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Instalar tipografías (para la imagen de Telegram)
+        continue-on-error: true
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends fonts-inter fonts-dejavu-core
       - name: Instalar librerías
-        run: pip install requests pypdf pdfplumber pywebpush
+        run: pip install requests pypdf pdfplumber pywebpush pillow
       - name: Mirar la web de Justicia y cargar lo nuevo
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -34,5 +42,5 @@ jobs:
           VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          JCV_REENVIAR_TELEGRAM: ${{ inputs.reenviar_telegram && '1' || '0' }}
         run: python robot_justicia.py
-
