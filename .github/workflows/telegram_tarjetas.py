@@ -110,12 +110,15 @@ def _png(img):
 def tarjeta_provisional(x):
     img = Image.new("RGB", (W, H), BG); d = ImageDraw.Draw(img)
     _base(d, x["c"], x["f"], "PROVISIONAL", False)
-    lun, mar = x["f"] + timedelta(days=3), x["f"] + timedelta(days=4)
+    mar = x["f"] + timedelta(days=((1 - x["f"].weekday()) % 7) or 7)   # próximo martes
     _kpis(d, 400, [(x["of"], "ofertas", BRAND), ("Lun 10:00", "abre Némesis", INK), (f"Mar {mar.day}", "se adjudica", INK)])
-    _stack(d, 640, x["v"], x["s"], x["r"])
+    if x["v"] + x["s"] + x["r"]:
+        _stack(d, 640, x["v"], x["s"], x["r"])
     cu = [(n, x["cuerpos"].get(c, 0)) for c, n in CUERPOS]
-    _bars(d, 96, 850, 400, "Por cuerpo", cu, BRAND)
-    _bars(d, 584, 850, 400, "Por provincia", [(p, x["provs"].get(p, 0)) for p in PROVS], BRAND)
+    if any(n for _, n in cu):
+        _bars(d, 96, 850, 400, "Por cuerpo", cu, BRAND)
+    if any(x["provs"].get(p) for p in PROVS):
+        _bars(d, 584, 850, 400, "Por provincia", [(p, x["provs"].get(p, 0)) for p in PROVS], BRAND)
     _pie(d)
     pie = (f"📋 <b>Convocatoria {x['c']}/2026 · listado provisional</b>\n"
            f"{x['of']} ofertas. Pídelas en Némesis del <b>lunes 10:00</b> al <b>martes 9:59</b>; "
@@ -134,10 +137,13 @@ def tarjeta_adjudicacion(x):
     _rr(d, (96, 616, W - 96, 640), 12, LINE)
     if pct: _rr(d, (96, 616, 96 + (W - 192) * pct / 100, 640), 12, BRAND)
     _txt(d, (W - 96, 668), f"{pct} % cubiertas", 28, MUTED, True, "ra")
-    _stack(d, 710, x["v"], x["s"], x["r"])
+    if x["v"] + x["s"] + x["r"]:
+        _stack(d, 710, x["v"], x["s"], x["r"])
     cu = [(n, x["cuerpos"].get(c, 0)) for c, n in CUERPOS]
-    _bars(d, 96, 910, 400, "Por cuerpo", cu, BRAND)
-    _bars(d, 584, 910, 400, "Por provincia", [(p, x["provs"].get(p, 0)) for p in PROVS], BRAND)
+    if any(n for _, n in cu):
+        _bars(d, 96, 910, 400, "Por cuerpo", cu, BRAND)
+    if any(x["provs"].get(p) for p in PROVS):
+        _bars(d, 584, 910, 400, "Por provincia", [(p, x["provs"].get(p, 0)) for p in PROVS], BRAND)
     _pie(d)
     extra = ""
     if sin and x.get("sin_cubrir_pobs"):
