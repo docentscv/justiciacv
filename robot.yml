@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Instalar librerías
-        run: pip install requests pypdf pdfplumber pywebpush
+        run: pip install requests pypdf pdfplumber pywebpush pillow
       - name: Mirar la web de Justicia y cargar lo nuevo
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
