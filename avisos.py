@@ -9,7 +9,7 @@ Solo envía una vez cada aviso por convocatoria (lo apunta en la tabla avisos_en
 Envía: avisos al móvil/navegador (Web Push, a quien los haya activado) y, si están los secretos, una TARJETA (imagen + botones)
 al canal de Telegram (telegram_tarjetas.py). Si la tarjeta fallase, manda el mensaje de texto de siempre.
 Variables: SUPABASE_URL, SUPABASE_SERVICE_KEY, VAPID_PRIVATE_KEY (obligatoria para los avisos al móvil),
-           VAPID_SUBJECT (opcional), TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID (opcionales), JCV_WEB (opcional).
+           JCV_REENVIAR_TELEGRAM=1 (reenvía solo la tarjeta a Telegram), VAPID_SUBJECT (opcional), TELEGRAM_BOT_TOKEN y TELEGRAM_CHAT_ID (opcionales), JCV_WEB (opcional).
 No imprime nombres ni datos personales: solo cuántos avisos se envían.
 """
 import json, os, sys
@@ -41,7 +41,7 @@ def _api(metodo, ruta, **kw):
 
 
 def ultima_convocatoria():
-    f = _api('GET', 'convocatorias?select=id,anio,numero,provisional,adjudicados_cargados,listado_cargado&order=anio.desc,numero.desc&limit=1')
+    f = _api('GET', 'convocatorias?select=id,anio,numero,fecha_publicacion,provisional,adjudicados_cargados,listado_cargado&order=anio.desc,numero.desc&limit=1')
     return f[0] if f else None
 
 
@@ -107,7 +107,8 @@ def _prov(v):
 def desglose(conv_id):
     d = {'v': 0, 's': 0, 'r': 0, 'cuerpos': {}, 'provs': {}, 'grupos': {}, 'sin_cubrir_pobs': []}
     filas = None
-    for sel in ('*,adjudicaciones(grupo),poblaciones(nombre,provincia)', '*,adjudicaciones(grupo)', '*'):
+    for sel in ('*,adjudicaciones(grupo),poblaciones(nombre,nombre_visible,provincia)',
+                '*,adjudicaciones(grupo),poblaciones(nombre,provincia)', '*,adjudicaciones(grupo)', '*'):
         try:
             filas = _api('GET', f'ofertas?select={sel}&convocatoria_id=eq.{conv_id}&limit=5000')
             break
@@ -132,10 +133,10 @@ def desglose(conv_id):
             g = a.get('grupo') if isinstance(a, dict) else None
             if g:
                 d['grupos'][g] = d['grupos'].get(g, 0) + 1
-        if isinstance(adj, list) and not adj:
+        if 'adjudicaciones' in o and not adj:          # sin adjudicar (la API devuelve [] o null según la relación)
             p = o.get('poblaciones')
             p = p[0] if isinstance(p, list) and p else p
-            nom = p.get('nombre') if isinstance(p, dict) else None
+            nom = _pick(p, 'nombre_visible', 'nombre') if isinstance(p, dict) else None
             if nom and nom not in d['sin_cubrir_pobs']:
                 d['sin_cubrir_pobs'].append(nom)
     print(f'Desglose para la tarjeta: tipos {d["v"]}/{d["s"]}/{d["r"]} · cuerpos {sum(d["cuerpos"].values())} · provincias {sum(d["provs"].values())} (de {len(filas)} ofertas).')
@@ -174,7 +175,11 @@ def enviar_telegram_tarjeta(c, tipo):
     try:
         from telegram_tarjetas import tarjeta_provisional, tarjeta_adjudicacion, enviar_tarjeta
         n, adj = cifras(c['id'])
-        datos = {**desglose(c['id']), 'c': c['numero'], 'of': n, 'adj': adj, 'f': datetime.now().date()}
+        try:                                                              # fecha de la convocatoria (así un reenvío tardío no pone la fecha de hoy)
+            f = datetime.strptime(str(c.get('fecha_publicacion'))[:10], '%Y-%m-%d').date()
+        except ValueError:
+            f = datetime.now().date()
+        datos = {**desglose(c['id']), 'c': c['numero'], 'of': n, 'adj': adj, 'f': f}
         png, pie, kb = (tarjeta_provisional if tipo == 'ofertas' else tarjeta_adjudicacion)(datos)
         res = enviar_tarjeta(png, pie, kb)
         if res.get('ok'):
@@ -228,6 +233,10 @@ def main(simulacro=False):
     tipo = tipo_pendiente(c)
     if not tipo:
         print(f'Avisos: la convocatoria {c["numero"]} aún no está completa; nada que avisar.')
+        return 0
+    if os.environ.get('JCV_REENVIAR_TELEGRAM') == '1':               # reenvío manual: solo la tarjeta a Telegram, sin móvil y sin marcar nada
+        print(f'Reenvío manual a Telegram de «{tipo}» (convocatoria {c["numero"]}).')
+        enviar_telegram_tarjeta(c, tipo)
         return 0
     if ya_enviado(c['id'], tipo):
         print(f'Avisos: «{tipo}» de la convocatoria {c["numero"]} ya se envió.')

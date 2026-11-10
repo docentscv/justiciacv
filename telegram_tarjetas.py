@@ -1,5 +1,5 @@
 """JusticiaCV · tarjetas de Telegram (imagen + pie + botones).
-Requiere Pillow (pip install pillow). Genera una imagen 1080x1350 con el estilo de la web y la
+Requiere Pillow (pip install pillow). Genera una imagen 1080x1440 con el estilo de la web y la
 envía con sendPhoto al canal. Uso desde el robot:
     from telegram_tarjetas import tarjeta_adjudicacion, tarjeta_provisional, enviar_tarjeta
     png, pie, kb = tarjeta_adjudicacion(datos); enviar_tarjeta(png, pie, kb)
@@ -22,11 +22,17 @@ W, H, S = 1080, 1440, 1
 
 
 def _font(size, bold=False):
-    for p in (["/usr/share/fonts/opentype/inter/Inter-%s.otf" % ("Bold" if bold else "Regular")] +
-              ["/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf" % ("-Bold" if bold else "")]):
+    for p in (["/usr/share/fonts/opentype/inter/Inter-%s.otf" % ("Bold" if bold else "Regular"),
+               "/usr/share/fonts/truetype/inter/Inter-%s.otf" % ("Bold" if bold else "Regular")] +
+              ["/usr/share/fonts/truetype/dejavu/DejaVuSans%s.ttf" % ("-Bold" if bold else ""),
+               "/usr/share/fonts/dejavu/DejaVuSans%s.ttf" % ("-Bold" if bold else ""),
+               "/usr/share/fonts/truetype/liberation/LiberationSans-%s.ttf" % ("Bold" if bold else "Regular")]):
         if os.path.exists(p):
             return ImageFont.truetype(p, size)
-    return ImageFont.load_default()
+    try:
+        return ImageFont.load_default(size)          # Pillow >= 10.1: tipografía incluida, con tamaño
+    except TypeError:
+        return ImageFont.load_default()
 
 
 def _txt(d, xy, s, size, color=INK, bold=False, anchor="la"):
