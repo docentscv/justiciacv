@@ -499,7 +499,10 @@ var ESTADO = { no_pide: 'No pides ofertas esta semana', pide_sin_plaza: 'Has ped
 function cuNombre(c) { var k = CUKEYS.filter(function (x) { return x[0] === c; })[0]; return k ? k[1] : c; }
 function accRoot() {
   var r = $('#acc-root');
-  if (r && !r.__aj) { r.__aj = 1; r.addEventListener('click', function (e) { var t = e.target.closest ? e.target.closest('[data-goaj]') : null; if (t) { e.preventDefault(); A.view = 'ajustes'; accLoad(); } }); }
+  if (r && !r.__aj) { r.__aj = 1; r.addEventListener('click', function (e) {
+    var t = e.target.closest ? e.target.closest('[data-goaj]') : null; if (t) { e.preventDefault(); A.view = 'ajustes'; accLoad(); return; }
+    var g = e.target.closest ? e.target.closest('[data-goinv]') : null; if (g) { e.preventDefault(); irInv(); }
+  }); }
   return r;
 }
 function msg(f) { return f ? '<div class="msg ' + (f.err ? 'err' : 'ok') + '" role="' + (f.err ? 'alert' : 'status') + '">' + esc(f.err || f.ok) + '</div>' : ''; }
@@ -735,7 +738,7 @@ function accDash(flash) {
   var st = subState();
   var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.promo ? '<span class="pill ok">Gratis hasta el ' + finDe(st.s.prueba_fin) + '</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Acceso gratuito terminado</span>';
   var nom = nombreGuardado();
-  var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + (nom ? '' : ' · <a href="#cuenta" data-goaj>Poner mi nombre</a>') + '</p></div>' + chip + '</div>' +
+  var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + (nom ? '' : ' · <a href="#cuenta" data-goaj>Poner mi nombre</a>') + '</p></div><div class="row" style="gap:8px;align-items:center"><a class="btn small" href="#cuenta" data-goinv>Invita y gana tu año gratis</a>' + chip + '</div></div>' +
     msg(flash) + '</section>';
   if (!st.ok) return accPaywall(head);
   r.innerHTML = head + '<div class="card empty" role="status">Cargando tu posición…</div>';
@@ -803,6 +806,12 @@ function invCard() {
     '<p style="margin-top:8px">Si <b>3 compañeros</b> pagan su año con tu enlace, <b>tu año te sale gratis</b>. Y ellos tienen <b>7 días más de prueba</b>.</p>' +
     '<div id="inv-body" style="margin-top:12px"><p class="hint">Cargando tu enlace…</p></div></section>';
 }
+function irInv() {
+  var card = $('#inv-card');
+  if (!card) { GO_INV = true; goCuenta('main'); return; }
+  if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { card.style.animation = 'none'; void card.offsetWidth; card.style.animation = 'nemflash 1.6s ease-out 1'; }
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 function invUrl(c) { return location.origin + location.pathname + '?inv=' + c; }
 function invCopiar(txt, inp, ok) {
   var viejo = function () { try { inp.select(); inp.setSelectionRange(0, 999); if (document.execCommand('copy')) ok(); } catch (e) {} };
@@ -811,7 +820,8 @@ function invCopiar(txt, inp, ok) {
 function bindInv() {
   var box = $('#inv-body'), go = GO_INV; GO_INV = false;
   if (go) { var card = $('#inv-card'); if (card) { if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) card.style.animation = 'nemflash 1.6s ease-out 1'; setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
-  if (!box || !ACC || !ACC.miInvitacion) return;
+  if (!box || !ACC) return;
+  if (!ACC.miInvitacion) { box.innerHTML = '<p class="hint">Tu navegador tiene guardada una versión anterior de la web.</p><div class="row" style="margin-top:8px"><button class="btn small primary" type="button" id="inv-rel">Recargar la página</button></div>'; $('#inv-rel').addEventListener('click', function () { location.reload(); }); return; }
   ACC.miInvitacion().then(function (x) {
     if (!x || !x.codigo) throw new Error('sin código');
     if (!box.isConnected) return;
