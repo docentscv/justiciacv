@@ -205,6 +205,7 @@
     },
     pushRegistrar: function (endpoint, p256dh, auth) { return authed('POST', '/rest/v1/rpc/registrar_push', { json: { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth } }); },
     pushQuitar: function (endpoint) { return authed('POST', '/rest/v1/rpc/quitar_push', { json: { p_endpoint: endpoint } }); },
+    adminUsuarios: function () { return authed('POST', '/rest/v1/rpc/admin_usuarios', { json: {} }); },
     adminCargas: function () { return authed('POST', '/rest/v1/rpc/admin_ultimas_cargas', { json: {} }); },
     setZona: function (pid, on) {
       if (on) return authed('POST', '/rest/v1/zonas_interes?on_conflict=user_id,poblacion_id', { json: { user_id: uid(), poblacion_id: pid }, prefer: 'resolution=ignore-duplicates,return=minimal' });

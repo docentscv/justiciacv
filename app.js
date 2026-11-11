@@ -609,6 +609,7 @@ function accLoad(flash) {
     }
     if (A.view === 'ajustes') return accAjustes(flash);
     if (A.view === 'test' && A.admin) return accAlta(flash, { test: true });
+    if (A.view === 'usuarios' && A.admin) return accUsuarios(flash);
     A.view = 'main';
     if (!me.listas.length) return accAlta(flash);
     accDash(flash);
@@ -706,12 +707,13 @@ function accAjustes(flash) {
       ? '<p style="margin-top:8px"><b>' + esc(bonito(nom)) + '</b></p><p class="hint" style="margin-top:6px">Se guarda en tu cuenta y solo lo ves tú; sale arriba en cualquier dispositivo. ' + (A.admin ? 'Para cambiarlo, usa el modo prueba de más abajo.' : 'El nombre de la cuenta solo lo puede cambiar un administrador.') + '</p>'
       : '<p class="hint" style="margin-top:6px">Escríbelo como aparece en el listado oficial y saldrá arriba en cualquier dispositivo. Se guarda en tu cuenta y solo lo ves tú.</p><div id="nom-msg" style="margin-top:8px"></div><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
     '<section class="card"><h3>Población</h3><p style="margin-top:8px"><b>' + esc(C.home) + '</b></p><p class="hint" style="margin-top:6px">Se elige una sola vez, al registrarte. ' + (A.admin ? 'Como administrador puedes cambiarla desde tu pantalla o en el modo prueba.' : 'Solo la puede cambiar un administrador.') + '</p></section>' +
-    (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
+    (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-us">Usuarios: inscritos, pagos e invitaciones</button><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
     '<section class="card" id="alerts-card"></section>' +
     accCard(true);
   bindAccCard(); initAlertas();
   $('#aj-back').addEventListener('click', function () { A.view = 'main'; accLoad(); });
   var t = $('#aj-test'); if (t) t.addEventListener('click', function () { A.view = 'test'; accLoad(); });
+  var tu = $('#aj-us'); if (tu) tu.addEventListener('click', function () { A.view = 'usuarios'; accLoad(); });
   var ok = $('#nom-ok');
   if (ok) {
     var inp = $('#nom-in');
@@ -796,6 +798,76 @@ function drawDash(head) {
   bindTables(r); bindAccCard(); bindInv();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
+}
+
+/* ---- Administración: usuarios (10_admin_usuarios.sql). Solo administradores; el servidor lo comprueba. ---- */
+var US = { q: '', est: 'all', ord: 'alta', rows: null };
+var US_EST = { pagado: ['Pagado', 'ok'], gratis: ['Gratis / prueba', 'ok'], caducado: ['Caducado', 'warn'], sin_alta: ['Sin alta', ''] };
+function fdt(ts, hora) { if (!ts) return '—'; var d = new Date(ts); return d.getDate() + ' ' + MES[d.getMonth()] + ' ' + d.getFullYear() + (hora ? ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : ''); }
+function usAcceso(u) { return u.estado === 'pagado' ? 'hasta ' + fmtD(u.pagado_hasta) : u.estado === 'gratis' ? 'hasta ' + finDe(u.prueba_fin) : u.estado === 'caducado' ? (u.pagado_hasta ? 'pagó hasta ' + fmtD(u.pagado_hasta) : 'terminó ' + (u.prueba_fin ? finDe(u.prueba_fin) : '—')) : 'no confirmó su fila'; }
+function accUsuarios(flash) {
+  var r = accRoot(); if (!r) return;
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Usuarios</h2><p class="hint">Solo administradores. Cuentas, accesos, pagos e invitaciones.</p></div><button class="btn small" type="button" id="us-back">← Ajustes</button></div>' + msg(flash) + '<div id="us-kpi"></div></section>' +
+    '<section class="card"><div class="grid2" style="gap:12px"><div class="field"><label for="us-q">Buscar</label><input class="input" id="us-q" type="search" autocomplete="off" placeholder="Correo, nombre, población, código…" value="' + esc(US.q) + '"></div>' +
+    '<div class="field"><label for="us-ord">Ordenar por</label><select class="input" id="us-ord">' + [['alta', 'Alta más reciente'], ['acceso', 'Último acceso'], ['inv', 'Más invitados'], ['nombre', 'Nombre']].map(function (x) { return '<option value="' + x[0] + '"' + (US.ord === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div></div>' +
+    '<div class="field" style="margin-top:10px"><label>Mostrar</label><div class="row" role="group" aria-label="Filtro">' + [['all', 'Todos'], ['pagado', 'Pagados'], ['gratis', 'Gratis / prueba'], ['caducado', 'Caducados'], ['sin_alta', 'Sin alta'], ['invitados', 'Vienen invitados'], ['invitan', 'Han invitado']].map(function (x) { return '<button class="chip" type="button" data-use="' + x[0] + '" aria-pressed="' + (US.est === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+    '<div class="row" style="margin-top:10px;justify-content:space-between"><span class="hint" id="us-n"></span><div class="row"><button class="btn small" type="button" id="us-csv">Descargar Excel (CSV)</button><button class="btn small" type="button" id="us-rel">Actualizar</button></div></div>' +
+    '<div id="us-out"><div class="card empty" role="status">Cargando usuarios…</div></div></section>';
+  $('#us-back').addEventListener('click', function () { A.view = 'ajustes'; accLoad(); });
+  $('#us-q').addEventListener('input', debounce(function () { US.q = $('#us-q').value; usPinta(); }, 150));
+  $('#us-ord').addEventListener('change', function (e) { US.ord = e.target.value; usPinta(); });
+  $$('button[data-use]', r).forEach(function (b) { b.addEventListener('click', function () { US.est = b.dataset.use; $$('button[data-use]', r).forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); usPinta(); }); });
+  $('#us-rel').addEventListener('click', function () { US.rows = null; accUsuarios(); });
+  $('#us-csv').addEventListener('click', usCsv);
+  if (!ACC.adminUsuarios) { $('#us-out').innerHTML = '<p class="hint">Tu navegador tiene guardada una versión anterior de la web. Recarga la página (Ctrl+F5).</p>'; return; }
+  (US.rows ? Promise.resolve(US.rows) : ACC.adminUsuarios()).then(function (rows) { US.rows = rows || []; usPinta(); },
+    function (e) { $('#us-out').innerHTML = msg({ err: 'No se han podido cargar los usuarios: ' + ((e && e.message) || 'error') + '. ¿Has ejecutado 10_admin_usuarios.sql en Supabase?' }); });
+}
+function usFiltrados() {
+  var q = norm(US.q).split(/\s+/).filter(Boolean);
+  var l = (US.rows || []).filter(function (u) {
+    if (US.est === 'invitados' ? !u.invitado_por : US.est === 'invitan' ? !u.apuntados : US.est !== 'all' && u.estado !== US.est) return false;
+    var t = norm([u.email, u.nombre, u.poblacion, u.cuerpos, u.codigo, u.invitado_por].join(' '));
+    for (var i = 0; i < q.length; i++) if (t.indexOf(q[i]) < 0) return false;
+    return true;
+  });
+  var k = { alta: function (u) { return -new Date(u.alta || 0); }, acceso: function (u) { return -new Date(u.ultimo_acceso || 0); }, inv: function (u) { return -(u.apuntados * 1000 + u.pagados); } }[US.ord];
+  return l.sort(k ? function (a, b) { return k(a) - k(b); } : function (a, b) { return (a.nombre || a.email || '').localeCompare(b.nombre || b.email || '', 'es'); });
+}
+function usPinta() {
+  var all = US.rows || [], out = $('#us-out'); if (!out) return;
+  var c = function (f) { return all.filter(f).length; };
+  var hoy = new Date(); hoy.setHours(0, 0, 0, 0); var sem = new Date(hoy.getTime() - 6 * 86400000);
+  $('#us-kpi').innerHTML = '<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(118px,1fr))">' + [
+    [all.length, 'cuentas'], [c(function (u) { return u.estado !== 'sin_alta'; }), 'con alta (fila confirmada)'], [c(function (u) { return u.estado === 'pagado'; }), 'han pagado'],
+    [c(function (u) { return u.estado === 'gratis'; }), 'gratis / prueba'], [c(function (u) { return u.estado === 'caducado'; }), 'caducados'],
+    [c(function (u) { return new Date(u.alta) >= sem; }), 'altas en 7 días'], [c(function (u) { return u.invitado_por; }), 'vienen invitados'],
+    [c(function (u) { return u.apuntados > 0; }), 'han invitado'], [c(function (u) { return u.avisos > 0; }), 'con avisos activados']
+  ].map(function (x) { return '<div class="kpi"><b class="num">' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>';
+  var l = usFiltrados();
+  $('#us-n').textContent = l.length + (l.length === 1 ? ' cuenta' : ' cuentas');
+  if (!l.length) { out.innerHTML = '<div class="card empty">No hay cuentas con este filtro.</div>'; return; }
+  out.innerHTML = '<div class="tbl-wrap" style="max-height:70vh"><table class="t us"><thead><tr><th>Persona</th><th>Población</th><th>Cuerpos</th><th>Alta</th><th>Último acceso</th><th>Acceso</th><th>Invitado por</th><th>Ha invitado</th><th>Avisos</th></tr></thead><tbody>' +
+    l.map(function (u) {
+      var e = US_EST[u.estado] || [u.estado, ''];
+      return '<tr><td><b>' + esc(u.nombre ? bonito(u.nombre) : '—') + '</b><br><span class="muted">' + esc(u.email || '') + '</span></td>' +
+        '<td>' + esc(u.poblacion || '—') + '</td><td>' + esc(u.cuerpos || '—') + '</td>' +
+        '<td class="num">' + fdt(u.alta) + '</td><td class="num">' + fdt(u.ultimo_acceso, true) + '</td>' +
+        '<td><span class="pill ' + e[1] + '">' + e[0] + '</span><br><span class="muted">' + esc(usAcceso(u)) + '</span></td>' +
+        '<td>' + (u.invitado_por ? esc(u.invitado_por) : '—') + '</td>' +
+        '<td>' + (u.apuntados ? '<b class="num">' + u.apuntados + '</b> apuntados · <b class="num">' + u.pagados + '</b> pagados' + (u.premios ? '<br><span class="pill ok">' + u.premios + (u.premios === 1 ? ' año gratis' : ' años gratis') + '</span>' : '') : '—') + (u.codigo ? '<br><span class="muted mono">' + esc(u.codigo) + '</span>' : '') + '</td>' +
+        '<td class="num">' + (u.avisos ? u.avisos : '—') + '</td></tr>';
+    }).join('') + '</tbody></table></div>';
+}
+function usCsv() {
+  var l = usFiltrados(); if (!l.length) return;
+  var cab = ['Correo', 'Nombre', 'Población', 'Cuerpos', 'Alta', 'Último acceso', 'Estado', 'Prueba hasta', 'Pagado hasta', 'Código', 'Invitado por', 'Apuntados con su enlace', 'Han pagado', 'Años gratis', 'Dispositivos con avisos'];
+  var q = function (v) { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  var f = function (ts) { return ts ? new Date(ts).toLocaleString('es-ES') : ''; };
+  var txt = '﻿' + [cab].concat(l.map(function (u) { return [u.email, u.nombre, u.poblacion, u.cuerpos, f(u.alta), f(u.ultimo_acceso), (US_EST[u.estado] || [u.estado])[0], f(u.prueba_fin), u.pagado_hasta || '', u.codigo, u.invitado_por, u.apuntados, u.pagados, u.premios, u.avisos]; })).map(function (r) { return r.map(q).join(';'); }).join('\r\n');
+  var a = document.createElement('a'), url = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' }));
+  a.href = url; a.download = 'justiciacv_usuarios_' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
 }
 
 /* ---- Invitar a compañeros (09_invitar.sql): 3 que pagan = tu año gratis; ellos, 7 días más de prueba ---- */
@@ -1278,7 +1350,7 @@ function openMenu() {
       (NEM ? '<a class="mi" role="menuitem" id="m-nem" href="' + esc(NEM) + '" target="_blank" rel="noopener noreferrer">Pedir plazas en Némesis ↗</a>' : '') +
       '<button type="button" role="menuitem" data-m="invitar">Invitar compañeros</button>' +
       '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
-      (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
+      (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="usuarios">Administración · usuarios</button><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
       '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
     menuEl.hidden = false; acctEl.setAttribute('aria-expanded', 'true');
     var f = $('[role=menuitem]', menuEl); if (f) f.focus();
