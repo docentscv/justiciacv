@@ -26,6 +26,18 @@ var store = {
   set: function (k, v) { try { localStorage.setItem('jcv.' + k, JSON.stringify(v)); } catch (e) {} }
 };
 function debounce(f, ms) { var t; return function () { clearTimeout(t); t = setTimeout(f, ms); }; }
+/* Invitaciones: el enlace …/justiciacv/?inv=CODIGO guarda el código en este navegador hasta que la persona termina su alta. */
+var INV_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/, INV_NUEVO = false;
+(function () {
+  try {
+    var m = /[?&]inv=([A-Za-z0-9]{6})(?:&|$)/.exec(location.search || '');
+    if (!m) return;
+    var c = m[1].toUpperCase();
+    if (INV_RE.test(c)) { store.set('inv', c); INV_NUEVO = true; }
+    var q = (location.search || '').replace(/([?&])inv=[^&]*&?/, '$1').replace(/[?&]$/, '');
+    history.replaceState(null, '', location.pathname + q + (location.hash || '#cuenta'));
+  } catch (e) {}
+})();
 
 /* ---------- datos ---------- */
 var CUN = ['Tramitación', 'Gestión', 'Auxilio Judicial', 'Médicos Forenses', 'Facultativos', 'Ayudantes de laboratorio', 'Otros'];
@@ -503,6 +515,7 @@ onProfile = saveProfileSoon;
 function pricing() {
   return '<div class="card"><p class="eyebrow">Precio</p><div class="price-n" style="margin-top:6px"><b>Gratis</b> hasta fin de 2026</div>' +
     '<p style="margin-top:8px">Todo el área personal sin pagar hasta el <b>31 de diciembre de 2026</b>. Desde 2027, <b class="num">9,99 €</b> por todo el año 2027, sin renovación automática.</p>' +
+    '<p style="margin-top:8px"><b>Invita a 3 compañeros:</b> si pagan su año, el tuyo te sale gratis.</p>' +
     '<p class="hint" style="margin-top:8px">Ver ofertas, zonas, mapa y datos sigue siendo gratis.</p></div>';
 }
 function accFatal(e) {
@@ -517,7 +530,11 @@ function accBoot() {
     if (h.error) flash = { err: h.error };
     else if (h.confirmed) flash = { ok: 'Correo confirmado. Ya puedes seguir.' };
     if (h.recovery && ACC.loggedIn()) return accRecovery();
-    if (!ACC.loggedIn()) return accAuth(flash);
+    if (!ACC.loggedIn()) {
+      if (INV_NUEVO) { INV_NUEVO = false; A.mode = 'up'; }
+      if (!flash && store.get('inv', '')) flash = { ok: 'Te ha invitado un compañero: al crear tu cuenta (o entrar en la tuya) tendrás 7 días más de prueba.' };
+      return accAuth(flash);
+    }
     accLoad(flash);
   });
 }
@@ -581,6 +598,12 @@ function accLoad(flash) {
     var me = res[0]; A.me = me; A.admin = !!res[1]; applyMe(me);
     var ln = nombreLocal();
     if (ln && me.listas.length && !(me.perfil && me.perfil.nombre)) ACC.guardarNombre(ln).then(function () { if (!A.me.perfil) A.me.perfil = {}; A.me.perfil.nombre = ln; }, function () {});
+    var inv = store.get('inv', '');
+    if (inv && me.listas.length && A.view !== 'test' && ACC.usarInvitacion) {
+      store.set('inv', '');
+      return ACC.usarInvitacion(inv).then(function () { accLoad({ ok: 'Invitación aplicada: tienes 7 días más de prueba.' + (flash && flash.ok ? ' ' + flash.ok : '') }); },
+        function (e) { var m = (e && e.message) || ''; accLoad(/propio/i.test(m) ? flash : { err: 'No se ha podido aplicar la invitación: ' + m }); });
+    }
     if (A.view === 'ajustes') return accAjustes(flash);
     if (A.view === 'test' && A.admin) return accAlta(flash, { test: true });
     A.view = 'main';
@@ -698,6 +721,7 @@ function accAjustes(flash) {
     ok.addEventListener('click', guardar); inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); guardar(); } });
   }
 }
+function finDe(ts) { var d = new Date(new Date(ts).getTime() - 1); return d.getDate() + ' ' + MES[d.getMonth()] + ' ' + d.getFullYear(); }
 function subState() {
   var s = A.me && A.me.suscripcion, now = new Date();
   var paid = !!(s && s.pagado_hasta && new Date(s.pagado_hasta + 'T23:59:59') >= now);
@@ -709,7 +733,7 @@ function subState() {
 function accDash(flash) {
   var r = accRoot(); if (!r) return;
   var st = subState();
-  var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.promo ? '<span class="pill ok">Gratis hasta el 31 dic 2026</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Acceso gratuito terminado</span>';
+  var chip = st.paid ? '<span class="pill ok">Acceso hasta el ' + fmtD(st.s.pagado_hasta) + '</span>' : st.promo ? '<span class="pill ok">Gratis hasta el ' + finDe(st.s.prueba_fin) + '</span>' : st.trial ? '<span class="pill ok">Prueba gratuita · ' + (st.left === 1 ? 'queda 1 día' : 'quedan ' + st.left + ' días') + '</span>' : '<span class="pill warn">Acceso gratuito terminado</span>';
   var nom = nombreGuardado();
   var head = '<section class="card"><div class="sec-h"><div><h2>' + esc(nom ? bonito(nom) : 'Mi puesto') + '</h2><p class="hint">' + (nom ? 'Mi puesto · ' : '') + esc(ACC.email()) + (nom ? '' : ' · <a href="#cuenta" data-goaj>Poner mi nombre</a>') + '</p></div>' + chip + '</div>' +
     msg(flash) + '</section>';
@@ -722,7 +746,8 @@ function accPaywall(head) {
   var r = accRoot(); if (!r) return;
   r.innerHTML = head + '<section class="card"><h2>Tu acceso gratuito ha terminado</h2><p style="margin-top:8px">Para seguir viendo tu posición, quién tienes delante y las ofertas cerca de ti, el área personal cuesta <b class="num">9,99 €</b> por todo el año 2027, sin renovación automática.</p>' +
     '<div class="row" style="margin-top:12px"><button class="btn primary" type="button" disabled>Pagar 9,99 € · próximamente</button></div>' +
-    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas y los datos.</p></section>';
+    '<p class="hint" style="margin-top:10px">Mientras tanto sigues teniendo gratis las ofertas, las zonas y los datos.</p></section>' + invCard();
+  bindInv();
 }
 function drawDash(head) {
   var r = accRoot(); if (!r) return;
@@ -746,6 +771,7 @@ function drawDash(head) {
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
     tableToggle('tbl-hist', ['Convocatoria', 'Fecha', 'Grupo', 'Puesto en el grupo', 'Estado'], hist.map(function (x) { return [x.convocatoria + '/2026', fmtD(x.fecha), x.grupo, x.posicion_en_grupo, ESTADO[x.estado] || x.estado]; })) + '</section>' +
     '<section class="card"><div class="sec-h"><h3>Avisos</h3><a class="btn small" href="#cuenta" data-goaj>Configurar</a></div><p class="hint">Recibe un aviso en el móvil cuando salgan ofertas o adjudicaciones. Se activa en Mi cuenta → Ajustes → Avisos.</p></section>' +
+    invCard() +
     '<section class="card"><h3>Mis cuerpos</h3><div class="row" style="margin-top:8px">' + (A.me.listas || []).map(function (l) { return '<span class="pill ok">' + esc(cuNombre(l.cuerpo)) + '</span>'; }).join('') + '</div><p class="hint" style="margin-top:10px">El listado solo incluye los cuerpos que tienen ofertas cada semana. Si estás en alguno más que aún no sale, pulsa el botón: buscamos tu nombre otra vez, sin que tengas que escribirlo.</p><div class="row" style="margin-top:10px"><button class="btn small" type="button" id="b-add">Buscar mis otros cuerpos</button></div><div id="add-msg" style="margin-top:10px"></div></section>' +
     '';
   if (__go) { var nc = $('#nem-card'); if (nc) { nc.classList.add('flash'); setTimeout(function () { nc.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
@@ -764,9 +790,62 @@ function drawDash(head) {
     var sl = $('#c-home'); sl.focus();
     sl.addEventListener('change', function (e) { C.home = e.target.value; store.set('acc', C); onProfile(); drawDash(head); });
   });
-  bindTables(r); bindAccCard();
+  bindTables(r); bindAccCard(); bindInv();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
+}
+
+/* ---- Invitar a compañeros (09_invitar.sql): 3 que pagan = tu año gratis; ellos, 7 días más de prueba ---- */
+var GO_INV = false;
+var INV_TXT = 'Mira tu puesto en la bolsa de Justicia, las ofertas cerca de ti y los avisos de cada semana en JusticiaCV. Con mi enlace tienes 7 días más gratis:';
+function invCard() {
+  return '<section class="card" id="inv-card"><div class="sec-h"><h3>Invita a tus compañeros</h3><span class="pill" id="inv-pill" hidden></span></div>' +
+    '<p style="margin-top:8px">Si <b>3 compañeros</b> pagan su año con tu enlace, <b>tu año te sale gratis</b>. Y ellos tienen <b>7 días más de prueba</b>.</p>' +
+    '<div id="inv-body" style="margin-top:12px"><p class="hint">Cargando tu enlace…</p></div></section>';
+}
+function invUrl(c) { return location.origin + location.pathname + '?inv=' + c; }
+function invCopiar(txt, inp, ok) {
+  var viejo = function () { try { inp.select(); inp.setSelectionRange(0, 999); if (document.execCommand('copy')) ok(); } catch (e) {} };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(ok, viejo); else viejo();
+}
+function bindInv() {
+  var box = $('#inv-body'), go = GO_INV; GO_INV = false;
+  if (go) { var card = $('#inv-card'); if (card) { if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) card.style.animation = 'nemflash 1.6s ease-out 1'; setTimeout(function () { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 60); } }
+  if (!box || !ACC || !ACC.miInvitacion) return;
+  ACC.miInvitacion().then(function (x) {
+    if (!x || !x.codigo) throw new Error('sin código');
+    if (!box.isConnected) return;
+    var url = invUrl(x.codigo), resto = x.pagados % 3, falta = 3 - resto;
+    var pill = $('#inv-pill'); if (pill) { pill.hidden = false; pill.className = 'pill' + (resto || x.premios ? ' ok' : ''); pill.textContent = resto + ' de 3 han pagado'; }
+    var wa = 'https://wa.me/?text=' + encodeURIComponent(INV_TXT + ' ' + url);
+    var tg = 'https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(INV_TXT);
+    box.innerHTML =
+      '<div class="row">' +
+        '<a class="btn primary" href="' + esc(wa) + '" target="_blank" rel="noopener noreferrer">Enviar por WhatsApp</a>' +
+        '<a class="btn" href="' + esc(tg) + '" target="_blank" rel="noopener noreferrer">Enviar por Telegram</a>' +
+        '<button class="btn" type="button" id="inv-copy">Copiar enlace</button>' +
+        (navigator.share ? '<button class="btn" type="button" id="inv-share">Otras apps…</button>' : '') +
+      '</div>' +
+      '<div class="row" style="margin-top:10px"><input class="input" id="inv-url" type="text" readonly value="' + esc(url) + '" aria-label="Tu enlace de invitación" style="max-width:360px"><span class="muted">Tu código: <b class="num">' + esc(x.codigo) + '</b></span></div>' +
+      '<div id="inv-msg" style="margin-top:8px"></div>' +
+      '<p style="margin-top:10px">Se han apuntado con tu enlace: <b class="num">' + x.apuntados + '</b> · Han pagado: <b class="num">' + x.pagados + '</b>' + (x.premios ? ' · Años gratis conseguidos: <b class="num">' + x.premios + '</b>' : '') + '</p>' +
+      '<p class="hint" style="margin-top:4px">' + (x.premios ? '¡Ya tienes tu año gratis en la cuenta! ' : '') + 'Te ' + (falta === 1 ? 'falta 1 compañero' : 'faltan ' + falta + ' compañeros') + ' para ' + (x.premios ? 'otro año gratis.' : 'tu año gratis.') +
+        (new Date() < GRATIS_FIN ? ' El pago de 2027 se abrirá a final de año: quien se apunte ahora con tu enlace cuenta cuando pague.' : '') + '</p>' +
+      (x.puede_usar_codigo ? '<details style="margin-top:12px"><summary>¿Te ha invitado alguien? Escribe su código</summary><div class="row" style="margin-top:8px"><input class="input" id="inv-cod" type="text" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="6 letras o números" aria-label="Código de quien te invita" style="max-width:190px;text-transform:uppercase"><button class="btn small" type="button" id="inv-usar">Usar código</button></div><p class="hint" style="margin-top:6px">Una sola vez y antes de pagar. Tendrás 7 días más de prueba.</p></details>' : '') +
+      '<details style="margin-top:10px"><summary class="muted">Condiciones</summary><p class="hint" style="margin-top:6px">Cuentan los compañeros que crean su cuenta con tu enlace (o escriben tu código antes de pagar) y después pagan su año. Por cada 3 que pagan, un año gratis para ti: si aún no has pagado el año en curso, no lo pagas; si ya lo has pagado, te regalamos el siguiente. No vale tu propio código. Solo ves cuántos se apuntan y pagan, nunca quiénes.</p></details>';
+    var inp = $('#inv-url'), m = $('#inv-msg');
+    inp.addEventListener('focus', function () { inp.select(); });
+    $('#inv-copy').addEventListener('click', function () { invCopiar(url, inp, function () { m.innerHTML = msg({ ok: 'Enlace copiado. Pégalo donde quieras.' }); }); });
+    var sh = $('#inv-share'); if (sh) sh.addEventListener('click', function () { navigator.share({ title: 'JusticiaCV', text: INV_TXT, url: url })['catch'](function () {}); });
+    var us = $('#inv-usar');
+    if (us) us.addEventListener('click', function () {
+      var c = ($('#inv-cod').value || '').replace(/\s/g, '').toUpperCase();
+      if (!INV_RE.test(c)) { m.innerHTML = msg({ err: 'El código tiene 6 letras o números.' }); return; }
+      us.disabled = true;
+      ACC.usarInvitacion(c).then(function () { accLoad({ ok: 'Invitación aplicada: tienes 7 días más de prueba.' }); },
+        function (e) { us.disabled = false; m.innerHTML = msg({ err: (e && e.message) || 'No se ha podido usar el código.' }); });
+    });
+  })['catch'](function () { if (box.isConnected) box.innerHTML = '<p class="hint">No se ha podido cargar tu enlace de invitación. Vuelve a intentarlo más tarde.</p>'; });
 }
 
 /* ---- Avisos (Web Push) ---- */
@@ -1187,6 +1266,7 @@ function openMenu() {
     menuEl.innerHTML = '<div class="who">' + (nom ? '<b>' + esc(bonito(nom)) + '</b>' : '') + '<span class="muted">' + esc(ACC.email()) + '</span>' + (adm ? '<span><span class="pill ok">Administrador</span></span>' : '') + '</div>' +
       '<button type="button" role="menuitem" data-m="main">Mi puesto</button>' +
       (NEM ? '<a class="mi" role="menuitem" id="m-nem" href="' + esc(NEM) + '" target="_blank" rel="noopener noreferrer">Pedir plazas en Némesis ↗</a>' : '') +
+      '<button type="button" role="menuitem" data-m="invitar">Invitar compañeros</button>' +
       '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
       (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
       '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
@@ -1204,6 +1284,7 @@ menuEl.addEventListener('click', function (ev) {
   if (!b) { if (ev.target.closest('a')) closeMenu(); return; }
   closeMenu(); var m = b.dataset.m;
   if (m === 'out') ACC.signOut().then(function () { A.me = null; A.admin = null; A.view = 'main'; A.mode = 'in'; syncAcct(); if ((location.hash || '') !== '#cuenta') location.hash = '#cuenta'; else accAuth(); });
+  else if (m === 'invitar') { GO_INV = true; goCuenta('main'); }
   else goCuenta(m);
 });
 menuEl.addEventListener('keydown', function (ev) {

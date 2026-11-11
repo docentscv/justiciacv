@@ -171,6 +171,8 @@
     historial: function () { return authed('POST', '/rest/v1/rpc/mi_historial', { json: {} }); },
     borrar: function () { return authed('POST', '/rest/v1/rpc/borrar_mi_cuenta', { json: {} }).then(function () { setSession(null); }); },
     guardarNombre: function (n) { return authed('POST', '/rest/v1/rpc/guardar_mi_nombre', { json: { p_nombre: n } }); },
+    miInvitacion: function () { return authed('POST', '/rest/v1/rpc/mi_invitacion', { json: {} }).then(function (r) { return (r && r[0]) || null; }); },
+    usarInvitacion: function (c) { return authed('POST', '/rest/v1/rpc/usar_invitacion', { json: { p_codigo: c } }); },
     me: function () {
       return Promise.all([
         authed('GET', '/rest/v1/mis_listas?select=cuerpo,confirmada'),
