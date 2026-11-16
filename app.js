@@ -7,6 +7,9 @@ var NEMESIS_URL = window.JCV_NEMESIS !== undefined ? window.JCV_NEMESIS : 'https
 var NEM = /^https:\/\//.test(NEMESIS_URL) ? NEMESIS_URL : '';
 /* Acceso gratuito para todos hasta final de 2026; desde 2027, 9,99 € por todo el año 2027. */
 var GRATIS_FIN = new Date('2027-01-01T00:00:00+01:00');
+/* Canal de Telegram con los avisos de cada convocatoria */
+var TELEGRAM_URL = 'https://t.me/justiciacv_avisos';
+var TG_ICO = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3 18.7 19.4c-.2 1.1-.9 1.3-1.8.8l-4.9-3.6-2.4 2.3c-.3.3-.5.5-1 .5l.3-5 9.1-8.2c.4-.4-.1-.6-.6-.2L6.2 13 1.4 11.5c-1-.3-1-1 .2-1.5L20.6 2.7c.9-.3 1.6.2 1.3 1.6z"/></svg>';
 
 /* ---------- utilidades ---------- */
 var $ = function (s, el) { return (el || document).querySelector(s); };
@@ -231,7 +234,9 @@ function viewInicio() {
     '<div style="margin-top:14px"><a class="btn small" href="#ofertas">Ver las ' + w.of + ' ofertas</a></div></div></section>' +
     '<section class="grid2">' + (provW ? provCard() : '<div class="card"><p class="eyebrow">Próxima convocatoria (estimación)</p><div class="next-d" style="margin-top:6px">' + nx.n + '/2026 · ' + fmtDL(nx.mar) + '</div><p class="hint">' + cd + '. No hay calendario oficial por adelantado: la fecha sale del ritmo de las últimas semanas.</p>' +
     '<div class="cycle"><div><b>' + fmtDL(nx.pub).split(' ')[0] + ' por la tarde</b>Listado provisional de ofertas</div><div><b>' + fmtDL(nx.lun).split(' ')[0] + ' 10:00 a ' + fmtDL(nx.mar).split(' ')[0] + ' 9:59</b>Peticiones en Némesis con certificado digital</div><div><b>' + fmtDL(nx.mar).split(' ')[0] + '</b>Adjudicación por orden de lista</div></div></div>') +
-    '<div class="card"><div class="sec-h"><h2>Tus zonas</h2><a class="btn small" href="#zonas">Elegir zonas</a></div>' + mineHtml + '</div></section>';
+    '<div class="card"><div class="sec-h"><h2>Tus zonas</h2><a class="btn small" href="#zonas">Elegir zonas</a></div>' + mineHtml + '</div></section>' +
+    '<section class="card" id="tg-card"><div class="sec-h"><div><p class="eyebrow">Canal de Telegram</p><h3 style="margin-top:4px">Te avisamos de cada convocatoria</h3><p class="hint">Cuando sale el listado provisional del viernes y cuando se publica la adjudicación del martes, con el resumen y los enlaces. Sin spam y sin tener que entrar en la web.</p></div>' +
+    '<a class="btn primary" href="' + TELEGRAM_URL + '" target="_blank" rel="noopener noreferrer">' + TG_ICO + 'Unirme al canal</a></div></section>';
 }
 function afterInicio() { var pp = $('#prov-pedir'); if (pp) pp.addEventListener('click', function () { GO_NEM = true; }); pulseChart($('#pulse')); bindFavs($('#view'), function () { render(); }); }
 
@@ -1052,7 +1057,8 @@ function initAlertas() {
       '<label class="alrt"><input type="checkbox" id="al-n"' + (al.nuevas_ofertas ? ' checked' : '') + '> Ofertas nuevas cerca de mí o en mis zonas, cuando se publica el listado del viernes.</label>' +
       '<label class="alrt"><input type="checkbox" id="al-c"' + (al.cerca_del_corte ? ' checked' : '') + '> Aviso cuando el último adjudicado se acerque a mi puesto, y si me adjudican.</label>' +
       '<label class="alrt"><input type="checkbox" id="al-r"' + (al.resumen_martes ? ' checked' : '') + '> Resumen del martes con las adjudicaciones de mi grupo y mi puesto.</label>' +
-      '<div id="al-msg" style="margin-top:8px">' + nota + '</div>';
+      '<div id="al-msg" style="margin-top:8px">' + nota + '</div>' +
+      '<p class="hint" style="margin-top:10px">¿Prefieres Telegram? Únete al <a href="' + TELEGRAM_URL + '" target="_blank" rel="noopener noreferrer">canal de JusticiaCV</a>: avisa de cada listado provisional y de cada adjudicación.</p>';
     [['al-n', 'nuevas_ofertas'], ['al-c', 'cerca_del_corte'], ['al-r', 'resumen_martes']].forEach(function (x) {
       var el = $('#' + x[0], box); if (!el) return;
       el.addEventListener('change', function () {
@@ -1451,6 +1457,7 @@ function openMenu() {
       '<button type="button" role="menuitem" data-m="invitar">Invitar compañeros</button>' +
       '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
       '<button type="button" role="menuitem" data-m="sugerencias">Sugerencias o averías</button>' +
+      '<a class="mi" role="menuitem" href="' + TELEGRAM_URL + '" target="_blank" rel="noopener noreferrer">Canal de Telegram ↗</a>' +
       (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="usuarios">Administración · usuarios</button><button type="button" role="menuitem" data-m="buzon">Administración · sugerencias<span class="pill warn" id="m-buz" hidden style="margin-left:6px"></span></button><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
       '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
     menuEl.hidden = false; acctEl.setAttribute('aria-expanded', 'true');
@@ -1487,7 +1494,7 @@ $('#theme').addEventListener('click', function () {
   var dark = document.documentElement.getAttribute('data-theme') === 'dark' || (!document.documentElement.getAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
   theme = dark ? 'light' : 'dark'; store.set('theme', theme); applyTheme(theme);
 });
-$('#foot').innerHTML = 'JusticiaCV es una web independiente y no oficial. Los datos proceden de los listados publicados por la Conselleria de Justicia (convocatorias 1 a ' + last.c + '/2026, hasta el ' + fmtD(last.f) + ') y se muestran agregados, sin nombres ni DNI. No sustituyen a la información oficial: contrasta siempre con el PDF original en la <a href="https://cjusticia.gva.es/es/web/justicia/adjudicacio-ofertes-ocupacio" target="_blank" rel="noopener">web oficial de la Conselleria de Justicia</a> (<a href="https://cjusticia.gva.es/es/web/justicia/convocatories-anteriors" target="_blank" rel="noopener">convocatorias anteriores</a>). <a href="politica-privacidad.html">Política de privacidad</a> · <a href="aviso-legal.html">Aviso legal</a>';
+$('#foot').innerHTML = 'JusticiaCV es una web independiente y no oficial. Los datos proceden de los listados publicados por la Conselleria de Justicia (convocatorias 1 a ' + last.c + '/2026, hasta el ' + fmtD(last.f) + ') y se muestran agregados, sin nombres ni DNI. No sustituyen a la información oficial: contrasta siempre con el PDF original en la <a href="https://cjusticia.gva.es/es/web/justicia/adjudicacio-ofertes-ocupacio" target="_blank" rel="noopener">web oficial de la Conselleria de Justicia</a> (<a href="https://cjusticia.gva.es/es/web/justicia/convocatories-anteriors" target="_blank" rel="noopener">convocatorias anteriores</a>). <a href="politica-privacidad.html">Política de privacidad</a> · <a href="aviso-legal.html">Aviso legal</a> · <a href="' + TELEGRAM_URL + '" target="_blank" rel="noopener">Canal de Telegram</a>';
 lastRoute = location.hash || '#inicio';
 render();
 })();
