@@ -20,6 +20,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read          # para que avisar_admin.py sepa si la pasada anterior también falló
 
 jobs:
   cargar:
@@ -43,4 +44,21 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           JCV_REENVIAR_TELEGRAM: ${{ inputs.reenviar_telegram && '1' || '0' }}
+        timeout-minutes: 20
         run: python robot_justicia.py
+      - name: Avisarme por Telegram si ha fallado
+        if: failure()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python avisar_admin.py fallo
+      - name: Avisarme si el robot se ha recuperado
+        if: success()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python avisar_admin.py ok

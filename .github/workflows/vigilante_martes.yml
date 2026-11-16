@@ -1,0 +1,28 @@
+# JusticiaCV · vigilante del martes. A las 16:00 (hora de Madrid, invierno) comprueba que la convocatoria de la semana esté completa
+# y, si no, te escribe por Telegram. En verano el cron cae a las 17:00 de Madrid; no importa.
+name: Vigilante martes
+
+on:
+  schedule:
+    - cron: '0 15 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  vigilar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Comprobar la convocatoria
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+        run: python avisar_admin.py martes
