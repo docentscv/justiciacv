@@ -634,6 +634,8 @@ function accLoad(flash) {
     if (A.view === 'ajustes') return accAjustes(flash);
     if (A.view === 'test' && A.admin) return accAlta(flash, { test: true });
     if (A.view === 'usuarios' && A.admin) return accUsuarios(flash);
+    if (A.view === 'buzon' && A.admin) return accBuzon(flash);
+    if (A.view === 'sugerencias') return accSug(flash);
     A.view = 'main';
     if (!me.listas.length) return accAlta(flash);
     accDash(flash);
@@ -731,13 +733,14 @@ function accAjustes(flash) {
       ? '<p style="margin-top:8px"><b>' + esc(bonito(nom)) + '</b></p><p class="hint" style="margin-top:6px">Se guarda en tu cuenta y solo lo ves tú; sale arriba en cualquier dispositivo. ' + (A.admin ? 'Para cambiarlo, usa el modo prueba de más abajo.' : 'El nombre de la cuenta solo lo puede cambiar un administrador.') + '</p>'
       : '<p class="hint" style="margin-top:6px">Escríbelo como aparece en el listado oficial y saldrá arriba en cualquier dispositivo. Se guarda en tu cuenta y solo lo ves tú.</p><div id="nom-msg" style="margin-top:8px"></div><div class="row" style="margin-top:10px"><input class="input" id="nom-in" type="text" autocomplete="name" placeholder="Tu nombre y apellidos" style="max-width:320px"><button class="btn small primary" type="button" id="nom-ok">Guardar</button></div>') + '</section>' +
     '<section class="card"><h3>Población</h3><p style="margin-top:8px"><b>' + esc(C.home) + '</b></p><p class="hint" style="margin-top:6px">Se elige una sola vez, al registrarte. ' + (A.admin ? 'Como administrador puedes cambiarla desde tu pantalla o en el modo prueba.' : 'Solo la puede cambiar un administrador.') + '</p></section>' +
-    (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-us">Usuarios: inscritos, pagos e invitaciones</button><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
+    (A.admin ? '<section class="card"><h3>Administración</h3><div class="row" style="margin-top:10px"><a class="btn small primary" href="admin.html">Subir los PDF de la semana</a><button class="btn small" type="button" id="aj-us">Usuarios: inscritos, pagos e invitaciones</button><button class="btn small" type="button" id="aj-buz">Sugerencias y averías</button><button class="btn small" type="button" id="aj-test">Modo prueba: cambiar nombre y población</button></div></section>' : '') +
     '<section class="card" id="alerts-card"></section>' +
     accCard(true);
   bindAccCard(); initAlertas();
   $('#aj-back').addEventListener('click', function () { A.view = 'main'; accLoad(); });
   var t = $('#aj-test'); if (t) t.addEventListener('click', function () { A.view = 'test'; accLoad(); });
   var tu = $('#aj-us'); if (tu) tu.addEventListener('click', function () { A.view = 'usuarios'; accLoad(); });
+  var tb = $('#aj-buz'); if (tb) tb.addEventListener('click', function () { A.view = 'buzon'; accLoad(); });
   var ok = $('#nom-ok');
   if (ok) {
     var inp = $('#nom-in');
@@ -823,6 +826,74 @@ function drawDash(head) {
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
 }
+
+/* ---- Sugerencias o averías (12_sugerencias.sql): el usuario escribe; el administrador lo ve en su buzón ---- */
+var SUG_TIPO = { sugerencia: 'Sugerencia', averia: 'Avería', otro: 'Otro' };
+var SUG_EST = { nueva: ['Nueva', 'warn'], leida: ['Leída', ''], resuelta: ['Resuelta', 'ok'] };
+function sugDonde() {
+  var ua = navigator.userAgent || '', so = /Android/.test(ua) ? 'Android' : /iPhone|iPad|iPod/.test(ua) ? 'iPhone/iPad' : /Windows/.test(ua) ? 'Windows' : /Mac/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'otro';
+  var nav = /Edg\//.test(ua) ? 'Edge' : /SamsungBrowser/.test(ua) ? 'Samsung' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'otro';
+  return (typeof origen === 'function' ? origen() : 'web') + ' · ' + so + ' · ' + nav + ' · ' + innerWidth + 'x' + innerHeight;
+}
+function accSug(flash) {
+  var r = accRoot(); if (!r) return;
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Sugerencias o averías</h2><p class="hint">Cuéntanos qué mejorarías o qué no funciona. Lo lee el administrador de la web y te contestará aquí mismo.</p></div><button class="btn small" type="button" id="sg-back">← Mi puesto</button></div>' + msg(flash) +
+    '<form class="form" id="sg-f" novalidate style="margin-top:12px"><div class="field"><label>¿Qué nos quieres contar?</label><div class="row" role="radiogroup" aria-label="Tipo de mensaje">' +
+    [['sugerencia', 'Una sugerencia'], ['averia', 'Algo no funciona'], ['otro', 'Otra cosa']].map(function (x, i) { return '<label class="chip" style="text-transform:none;letter-spacing:normal;font-size:14px;color:var(--ink)"><input type="radio" name="sg-t" value="' + x[0] + '"' + (i === 0 ? ' checked' : '') + ' style="margin:0 4px 0 0">' + x[1] + '</label>'; }).join('') + '</div></div>' +
+    '<div class="field"><label for="sg-txt">Mensaje</label><textarea class="input" id="sg-txt" rows="6" maxlength="3000" placeholder="Si es una avería, dinos qué estabas haciendo y qué ha pasado." style="resize:vertical;min-height:130px;font-family:inherit"></textarea></div>' +
+    '<p class="hint">Junto al mensaje se envía tu correo y, para ayudar con las averías, desde dónde lo usas (' + esc(sugDonde()) + '). Nada más.</p>' +
+    '<div id="f-msg"></div><button class="btn primary" type="submit">Enviar</button></form></section>' +
+    '<section class="card"><h3>Mis mensajes</h3><div id="sg-list" style="margin-top:8px"><p class="hint">Cargando…</p></div></section>';
+  $('#sg-back').addEventListener('click', function () { A.view = 'main'; accLoad(); });
+  if (!ACC.enviarSugerencia) { $('#sg-list').innerHTML = '<p class="hint">Tu navegador tiene guardada una versión anterior de la web. Recarga la página (Ctrl+F5).</p>'; return; }
+  submitForm($('#sg-f'), function () {
+    var t = ($('input[name=sg-t]:checked') || {}).value || 'sugerencia', txt = $('#sg-txt').value.trim();
+    if (txt.length < 5) throw new Error('Escribe un poco más.');
+    return ACC.enviarSugerencia(t, txt, sugDonde()).then(function () { accSug({ ok: '¡Gracias! Mensaje enviado. Verás aquí la respuesta.' }); });
+  });
+  ACC.misSugerencias().then(function (l) {
+    var box = $('#sg-list'); if (!box) return;
+    box.innerHTML = l && l.length ? l.map(function (s) {
+      var e = SUG_EST[s.estado] || [s.estado, ''];
+      return '<div style="border-top:1px solid var(--line);padding:10px 0"><div class="row" style="justify-content:space-between"><b>' + SUG_TIPO[s.tipo] + '</b><span class="row"><span class="muted">' + fdt(s.creado, true) + '</span><span class="pill ' + e[1] + '">' + e[0] + '</span></span></div>' +
+        '<p style="margin-top:6px;white-space:pre-wrap">' + esc(s.texto) + '</p>' + (s.respuesta ? '<div class="msg ok" style="margin-top:8px;white-space:pre-wrap"><b>Respuesta:</b> ' + esc(s.respuesta) + '</div>' : '') + '</div>';
+    }).join('') : '<p class="hint">Aún no has enviado ningún mensaje.</p>';
+  }, function () { var box = $('#sg-list'); if (box) box.innerHTML = '<p class="hint">No se han podido cargar tus mensajes.</p>'; });
+}
+var BZ = { est: 'pend' };
+function accBuzon(flash) {
+  var r = accRoot(); if (!r) return;
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Sugerencias y averías</h2><p class="hint">Solo administradores. Lo que te envían los usuarios desde «Sugerencias o averías». La respuesta la ven en esa misma pantalla.</p></div><button class="btn small" type="button" id="bz-back">← Ajustes</button></div>' + msg(flash) +
+    '<div class="row" role="group" aria-label="Filtro" style="margin-top:10px">' + [['pend', 'Pendientes'], ['nueva', 'Nuevas'], ['resuelta', 'Resueltas'], ['all', 'Todas']].map(function (x) { return '<button class="chip" type="button" data-bz="' + x[0] + '" aria-pressed="' + (BZ.est === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></section>' +
+    '<section id="bz-out" style="display:grid;gap:14px"><div class="card empty" role="status">Cargando…</div></section>';
+  $('#bz-back').addEventListener('click', function () { A.view = 'ajustes'; accLoad(); });
+  $$('button[data-bz]', r).forEach(function (b) { b.addEventListener('click', function () { BZ.est = b.dataset.bz; accBuzon(); }); });
+  if (!ACC.adminSugerencias) { $('#bz-out').innerHTML = '<div class="card"><p class="hint">Recarga la página (Ctrl+F5).</p></div>'; return; }
+  ACC.adminSugerencias().then(function (l) {
+    var out = $('#bz-out'); if (!out) return;
+    var n = { nueva: 0, leida: 0, resuelta: 0 }; l.forEach(function (s) { n[s.estado]++; });
+    l = l.filter(function (s) { return BZ.est === 'all' || (BZ.est === 'pend' ? s.estado !== 'resuelta' : s.estado === BZ.est); });
+    out.innerHTML = '<p class="hint" style="margin:0 4px">' + n.nueva + ' nuevas · ' + n.leida + ' leídas · ' + n.resuelta + ' resueltas</p>' + (l.length ? l.map(function (s) {
+      var e = SUG_EST[s.estado] || [s.estado, ''];
+      return '<article class="card" data-id="' + s.id + '"><div class="sec-h"><div><b>' + SUG_TIPO[s.tipo] + '</b> · ' + esc(s.nombre ? bonito(s.nombre) : '—') + ' <span class="muted">' + esc(s.email || '(cuenta borrada)') + '</span><p class="hint">' + fdt(s.creado, true) + (s.donde ? ' · ' + esc(s.donde) : '') + '</p></div><span class="pill ' + e[1] + '">' + e[0] + '</span></div>' +
+        '<p style="margin-top:8px;white-space:pre-wrap">' + esc(s.texto) + '</p>' +
+        '<div class="field" style="margin-top:10px"><label for="bz-r' + s.id + '">Respuesta (la ve el usuario)</label><textarea class="input" id="bz-r' + s.id + '" rows="2" maxlength="3000" style="resize:vertical">' + esc(s.respuesta || '') + '</textarea></div>' +
+        '<div class="row" style="margin-top:8px">' + (s.email ? '<a class="btn small" href="mailto:' + esc(s.email) + '?subject=' + encodeURIComponent('JusticiaCV: tu ' + SUG_TIPO[s.tipo].toLowerCase()) + '">Escribir por correo</a>' : '') +
+        '<button class="btn small" type="button" data-bzs="leida">Guardar · leída</button><button class="btn small primary" type="button" data-bzs="resuelta">Guardar · resuelta</button>' + (s.estado !== 'nueva' ? '<button class="btn small" type="button" data-bzs="nueva">Marcar como nueva</button>' : '') + '<button class="btn small danger" type="button" data-bzs="borrar">Borrar</button></div></article>';
+    }).join('') : '<div class="card empty">No hay mensajes con este filtro.</div>');
+    $$('button[data-bzs]', out).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var art = b.closest('[data-id]'), id = +art.dataset.id, est = b.dataset.bzs;
+        if (est === 'borrar' && !confirmarBorrar(b)) return;
+        b.disabled = true;
+        ACC.adminSugerencia(id, est, est === 'borrar' ? null : $('#bz-r' + id).value).then(function () { accBuzon({ ok: est === 'borrar' ? 'Mensaje borrado.' : 'Guardado.' }); },
+          function (e) { b.disabled = false; alertMsg(art, e); });
+      });
+    });
+  }, function (e) { var out = $('#bz-out'); if (out) out.innerHTML = '<div class="card">' + msg({ err: 'No se han podido cargar: ' + ((e && e.message) || 'error') + '. ¿Has ejecutado 12_sugerencias.sql?' }) + '</div>'; });
+}
+function confirmarBorrar(b) { if (b.dataset.seguro) return true; b.dataset.seguro = '1'; b.textContent = '¿Seguro? Pulsa otra vez'; return false; }
+function alertMsg(el, e) { var d = document.createElement('div'); d.innerHTML = msg({ err: (e && e.message) || 'Error' }); el.appendChild(d.firstChild); }
 
 /* ---- Administración: usuarios (10_admin_usuarios.sql). Solo administradores; el servidor lo comprueba. ---- */
 var US = { q: '', est: 'all', ord: 'alta', rows: null };
@@ -1379,10 +1450,12 @@ function openMenu() {
       (NEM ? '<a class="mi" role="menuitem" id="m-nem" href="' + esc(NEM) + '" target="_blank" rel="noopener noreferrer">Pedir plazas en Némesis ↗</a>' : '') +
       '<button type="button" role="menuitem" data-m="invitar">Invitar compañeros</button>' +
       '<button type="button" role="menuitem" data-m="ajustes">Ajustes</button>' +
-      (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="usuarios">Administración · usuarios</button><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
+      '<button type="button" role="menuitem" data-m="sugerencias">Sugerencias o averías</button>' +
+      (adm ? '<div class="sep"></div><a class="mi" role="menuitem" href="admin.html">Administración · subir PDF</a><button type="button" role="menuitem" data-m="usuarios">Administración · usuarios</button><button type="button" role="menuitem" data-m="buzon">Administración · sugerencias<span class="pill warn" id="m-buz" hidden style="margin-left:6px"></span></button><button type="button" role="menuitem" data-m="test">Modo prueba · cambiar nombre</button>' : '') +
       '<div class="sep"></div><button type="button" role="menuitem" data-m="out">Cerrar sesión</button>';
     menuEl.hidden = false; acctEl.setAttribute('aria-expanded', 'true');
     var f = $('[role=menuitem]', menuEl); if (f) f.focus();
+    if (adm && ACC.adminSugNuevas) ACC.adminSugNuevas().then(function (n) { var b = $('#m-buz'); if (b && n > 0) { b.textContent = n + (n === 1 ? ' nueva' : ' nuevas'); b.hidden = false; } }, function () {});
   });
 }
 acctEl.addEventListener('click', function (ev) {
