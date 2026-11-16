@@ -26,6 +26,29 @@ var store = {
   set: function (k, v) { try { localStorage.setItem('jcv.' + k, JSON.stringify(v)); } catch (e) {} }
 };
 function debounce(f, ms) { var t; return function () { clearTimeout(t); t = setTimeout(f, ms); }; }
+/* Origen: ¿se usa desde la app de Android, el icono del iPhone o la web? y de qué enlace vino (?o=telegram). Lo ve el administrador. */
+var EN_APP = false;
+(function () {
+  try {
+    if (/^android-app:\/\/io\.github\.docentscv\.justiciacv/.test(document.referrer || '')) sessionStorage.setItem('jcv.app', '1');
+    EN_APP = sessionStorage.getItem('jcv.app') === '1';
+  } catch (e) {}
+  try {
+    var m = /[?&]o=([a-z0-9_-]{1,30})(?:&|$)/i.exec(location.search || '');
+    if (!m) return;
+    if (!store.get('o', '')) store.set('o', m[1].toLowerCase());
+    var q = (location.search || '').replace(/([?&])o=[^&]*&?/, '$1').replace(/[?&]$/, '');
+    history.replaceState(null, '', location.pathname + q + location.hash);
+  } catch (e) {}
+})();
+function origen() {
+  var solo = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true;
+  if (EN_APP) return 'app_android';
+  if (solo && (/iPhone|iPad|iPod/.test(navigator.userAgent) || navigator.standalone === true)) return 'iphone_icono';
+  if (solo && /Android/.test(navigator.userAgent)) return 'app_android';
+  return solo ? 'web_instalada' : 'web';
+}
+var ORIGEN_HECHO = false;
 /* Invitaciones: el enlace …/justiciacv/?inv=CODIGO guarda el código en este navegador hasta que la persona termina su alta. */
 var INV_RE = /^[ABCDEFGHJKMNPQRSTUVWXYZ23456789]{6}$/, INV_NUEVO = false;
 (function () {
@@ -601,6 +624,7 @@ function accLoad(flash) {
     var me = res[0]; A.me = me; A.admin = !!res[1]; applyMe(me);
     var ln = nombreLocal();
     if (ln && me.listas.length && !(me.perfil && me.perfil.nombre)) ACC.guardarNombre(ln).then(function () { if (!A.me.perfil) A.me.perfil = {}; A.me.perfil.nombre = ln; }, function () {});
+    if (!ORIGEN_HECHO && ACC.marcarOrigen) { ORIGEN_HECHO = true; ACC.marcarOrigen(origen(), store.get('o', '') || null)['catch'](function () {}); }
     var inv = store.get('inv', '');
     if (inv && me.listas.length && A.view !== 'test' && ACC.usarInvitacion) {
       store.set('inv', '');
@@ -802,6 +826,8 @@ function drawDash(head) {
 
 /* ---- Administración: usuarios (10_admin_usuarios.sql). Solo administradores; el servidor lo comprueba. ---- */
 var US = { q: '', est: 'all', ord: 'alta', rows: null };
+var US_ORI = { app_android: 'App Android', iphone_icono: 'Icono iPhone', web_instalada: 'Web instalada', web: 'Web' };
+function usOri(v) { return v ? (US_ORI[v] || v) : '—'; }
 var US_EST = { pagado: ['Pagado', 'ok'], gratis: ['Gratis / prueba', 'ok'], caducado: ['Caducado', 'warn'], sin_alta: ['Sin alta', ''] };
 function fdt(ts, hora) { if (!ts) return '—'; var d = new Date(ts); return d.getDate() + ' ' + MES[d.getMonth()] + ' ' + d.getFullYear() + (hora ? ' ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') : ''); }
 function usAcceso(u) { return u.estado === 'pagado' ? 'hasta ' + fmtD(u.pagado_hasta) : u.estado === 'gratis' ? 'hasta ' + finDe(u.prueba_fin) : u.estado === 'caducado' ? (u.pagado_hasta ? 'pagó hasta ' + fmtD(u.pagado_hasta) : 'terminó ' + (u.prueba_fin ? finDe(u.prueba_fin) : '—')) : 'no confirmó su fila'; }
@@ -810,7 +836,7 @@ function accUsuarios(flash) {
   r.innerHTML = '<section class="card"><div class="sec-h"><div><h2>Usuarios</h2><p class="hint">Solo administradores. Cuentas, accesos, pagos e invitaciones.</p></div><button class="btn small" type="button" id="us-back">← Ajustes</button></div>' + msg(flash) + '<div id="us-kpi"></div></section>' +
     '<section class="card"><div class="grid2" style="gap:12px"><div class="field"><label for="us-q">Buscar</label><input class="input" id="us-q" type="search" autocomplete="off" placeholder="Correo, nombre, población, código…" value="' + esc(US.q) + '"></div>' +
     '<div class="field"><label for="us-ord">Ordenar por</label><select class="input" id="us-ord">' + [['alta', 'Alta más reciente'], ['acceso', 'Último acceso'], ['inv', 'Más invitados'], ['nombre', 'Nombre']].map(function (x) { return '<option value="' + x[0] + '"' + (US.ord === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div></div>' +
-    '<div class="field" style="margin-top:10px"><label>Mostrar</label><div class="row" role="group" aria-label="Filtro">' + [['all', 'Todos'], ['pagado', 'Pagados'], ['gratis', 'Gratis / prueba'], ['caducado', 'Caducados'], ['sin_alta', 'Sin alta'], ['invitados', 'Vienen invitados'], ['invitan', 'Han invitado']].map(function (x) { return '<button class="chip" type="button" data-use="' + x[0] + '" aria-pressed="' + (US.est === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
+    '<div class="field" style="margin-top:10px"><label>Mostrar</label><div class="row" role="group" aria-label="Filtro">' + [['all', 'Todos'], ['pagado', 'Pagados'], ['gratis', 'Gratis / prueba'], ['caducado', 'Caducados'], ['sin_alta', 'Sin alta'], ['invitados', 'Vienen invitados'], ['invitan', 'Han invitado'], ['app', 'Usan la app'], ['soloweb', 'Solo web']].map(function (x) { return '<button class="chip" type="button" data-use="' + x[0] + '" aria-pressed="' + (US.est === x[0]) + '">' + x[1] + '</button>'; }).join('') + '</div></div>' +
     '<div class="row" style="margin-top:10px;justify-content:space-between"><span class="hint" id="us-n"></span><div class="row"><button class="btn small" type="button" id="us-csv">Descargar Excel (CSV)</button><button class="btn small" type="button" id="us-rel">Actualizar</button></div></div>' +
     '<div id="us-out"><div class="card empty" role="status">Cargando usuarios…</div></div></section>';
   $('#us-back').addEventListener('click', function () { A.view = 'ajustes'; accLoad(); });
@@ -826,8 +852,8 @@ function accUsuarios(flash) {
 function usFiltrados() {
   var q = norm(US.q).split(/\s+/).filter(Boolean);
   var l = (US.rows || []).filter(function (u) {
-    if (US.est === 'invitados' ? !u.invitado_por : US.est === 'invitan' ? !u.apuntados : US.est !== 'all' && u.estado !== US.est) return false;
-    var t = norm([u.email, u.nombre, u.poblacion, u.cuerpos, u.codigo, u.invitado_por].join(' '));
+    if (US.est === 'invitados' ? !u.invitado_por : US.est === 'invitan' ? !u.apuntados : US.est === 'app' ? !u.usa_app : US.est === 'soloweb' ? (u.usa_app || !u.ultimo_origen) : US.est !== 'all' && u.estado !== US.est) return false;
+    var t = norm([u.email, u.nombre, u.poblacion, u.cuerpos, u.codigo, u.invitado_por, u.enlace_origen, usOri(u.origen_alta), usOri(u.ultimo_origen)].join(' '));
     for (var i = 0; i < q.length; i++) if (t.indexOf(q[i]) < 0) return false;
     return true;
   });
@@ -842,12 +868,12 @@ function usPinta() {
     [all.length, 'cuentas'], [c(function (u) { return u.estado !== 'sin_alta'; }), 'con alta (fila confirmada)'], [c(function (u) { return u.estado === 'pagado'; }), 'han pagado'],
     [c(function (u) { return u.estado === 'gratis'; }), 'gratis / prueba'], [c(function (u) { return u.estado === 'caducado'; }), 'caducados'],
     [c(function (u) { return new Date(u.alta) >= sem; }), 'altas en 7 días'], [c(function (u) { return u.invitado_por; }), 'vienen invitados'],
-    [c(function (u) { return u.apuntados > 0; }), 'han invitado'], [c(function (u) { return u.avisos > 0; }), 'con avisos activados']
+    [c(function (u) { return u.apuntados > 0; }), 'han invitado'], [c(function (u) { return u.avisos > 0; }), 'con avisos activados'], [c(function (u) { return u.usa_app; }), 'han usado la app'], [c(function (u) { return u.ultimo_origen && !u.usa_app; }), 'solo por la web']
   ].map(function (x) { return '<div class="kpi"><b class="num">' + x[0] + '</b><span>' + x[1] + '</span></div>'; }).join('') + '</div>';
   var l = usFiltrados();
   $('#us-n').textContent = l.length + (l.length === 1 ? ' cuenta' : ' cuentas');
   if (!l.length) { out.innerHTML = '<div class="card empty">No hay cuentas con este filtro.</div>'; return; }
-  out.innerHTML = '<div class="tbl-wrap" style="max-height:70vh"><table class="t us"><thead><tr><th>Persona</th><th>Población</th><th>Cuerpos</th><th>Alta</th><th>Último acceso</th><th>Acceso</th><th>Invitado por</th><th>Ha invitado</th><th>Avisos</th></tr></thead><tbody>' +
+  out.innerHTML = '<div class="tbl-wrap" style="max-height:70vh"><table class="t us"><thead><tr><th>Persona</th><th>Población</th><th>Cuerpos</th><th>Alta</th><th>Último acceso</th><th>Acceso</th><th>Invitado por</th><th>Ha invitado</th><th>Avisos</th><th>Entra desde</th></tr></thead><tbody>' +
     l.map(function (u) {
       var e = US_EST[u.estado] || [u.estado, ''];
       return '<tr><td><b>' + esc(u.nombre ? bonito(u.nombre) : '—') + '</b><br><span class="muted">' + esc(u.email || '') + '</span></td>' +
@@ -856,15 +882,18 @@ function usPinta() {
         '<td><span class="pill ' + e[1] + '">' + e[0] + '</span><br><span class="muted">' + esc(usAcceso(u)) + '</span></td>' +
         '<td>' + (u.invitado_por ? esc(u.invitado_por) : '—') + '</td>' +
         '<td>' + (u.apuntados ? '<b class="num">' + u.apuntados + '</b> apuntados · <b class="num">' + u.pagados + '</b> pagados' + (u.premios ? '<br><span class="pill ok">' + u.premios + (u.premios === 1 ? ' año gratis' : ' años gratis') + '</span>' : '') : '—') + (u.codigo ? '<br><span class="muted mono">' + esc(u.codigo) + '</span>' : '') + '</td>' +
-        '<td class="num">' + (u.avisos ? u.avisos : '—') + '</td></tr>';
+        '<td class="num">' + (u.avisos ? u.avisos : '—') + '</td>' +
+        '<td>' + (u.ultimo_origen ? '<span class="pill' + (u.usa_app ? ' ok' : '') + '">' + usOri(u.ultimo_origen) + '</span><br><span class="muted">' + fdt(u.ultimo_origen_el, true) + '</span>' : '—') +
+          (u.origen_alta ? '<br><span class="muted">Alta: ' + usOri(u.origen_alta) + '</span>' : '') + (u.usa_app && u.ultimo_origen && u.ultimo_origen.indexOf('app') < 0 && u.ultimo_origen !== 'iphone_icono' ? '<br><span class="muted">Ha usado la app</span>' : '') +
+          (u.enlace_origen ? '<br><span class="muted">Enlace: ' + esc(u.enlace_origen) + '</span>' : '') + '</td></tr>';
     }).join('') + '</tbody></table></div>';
 }
 function usCsv() {
   var l = usFiltrados(); if (!l.length) return;
-  var cab = ['Correo', 'Nombre', 'Población', 'Cuerpos', 'Alta', 'Último acceso', 'Estado', 'Prueba hasta', 'Pagado hasta', 'Código', 'Invitado por', 'Apuntados con su enlace', 'Han pagado', 'Años gratis', 'Dispositivos con avisos'];
+  var cab = ['Correo', 'Nombre', 'Población', 'Cuerpos', 'Alta', 'Último acceso', 'Estado', 'Prueba hasta', 'Pagado hasta', 'Código', 'Invitado por', 'Apuntados con su enlace', 'Han pagado', 'Años gratis', 'Dispositivos con avisos', 'Alta desde', 'Último uso desde', 'Último uso', 'Ha usado la app', 'Enlace de origen'];
   var q = function (v) { v = v == null ? '' : String(v); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
   var f = function (ts) { return ts ? new Date(ts).toLocaleString('es-ES') : ''; };
-  var txt = '﻿' + [cab].concat(l.map(function (u) { return [u.email, u.nombre, u.poblacion, u.cuerpos, f(u.alta), f(u.ultimo_acceso), (US_EST[u.estado] || [u.estado])[0], f(u.prueba_fin), u.pagado_hasta || '', u.codigo, u.invitado_por, u.apuntados, u.pagados, u.premios, u.avisos]; })).map(function (r) { return r.map(q).join(';'); }).join('\r\n');
+  var txt = '﻿' + [cab].concat(l.map(function (u) { return [u.email, u.nombre, u.poblacion, u.cuerpos, f(u.alta), f(u.ultimo_acceso), (US_EST[u.estado] || [u.estado])[0], f(u.prueba_fin), u.pagado_hasta || '', u.codigo, u.invitado_por, u.apuntados, u.pagados, u.premios, u.avisos, usOri(u.origen_alta), usOri(u.ultimo_origen), f(u.ultimo_origen_el), u.usa_app ? 'sí' : 'no', u.enlace_origen || '']; })).map(function (r) { return r.map(q).join(';'); }).join('\r\n');
   var a = document.createElement('a'), url = URL.createObjectURL(new Blob([txt], { type: 'text/csv;charset=utf-8' }));
   a.href = url; a.download = 'justiciacv_usuarios_' + new Date().toISOString().slice(0, 10) + '.csv'; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
