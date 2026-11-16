@@ -9,7 +9,9 @@ si traen algo que la base de datos aún no tiene, los carga con importar_semana.
 Es un script normal (no es una IA) y se identifica con su User-Agent. Pide solo la página y los PDF publicados.
 
 Después de cada pasada llama a avisos.py (avisos al móvil y Telegram, una sola vez por convocatoria).
-Códigos de salida: 0 = hecho o nada que hacer · 1 = algo ha fallado (GitHub te avisa por correo).
+Poblaciones nuevas: si el PDF trae una población que la base no tiene, el robot la busca en OpenStreetMap
+(poblaciones_auto.py), la da de alta y te lo cuenta por Telegram. Si no está seguro, se para y te avisa.
+Códigos de salida: 0 = hecho o nada que hacer · 1 = algo ha fallado (te avisa por Telegram avisar_admin.py y GitHub por correo).
 Variables: SUPABASE_URL, SUPABASE_SERVICE_KEY (en GitHub: Settings > Secrets and variables > Actions).
 """
 import importlib.util, os, re, sys, tempfile, time, urllib.parse
@@ -96,11 +98,61 @@ def main():
     spec = importlib.util.spec_from_file_location('importar_semana', AQUI / 'importar_semana.py')
     imp = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(imp)
+    return cargar(imp, carpeta)
+
+
+def avisar_admin(texto):
+    """Mensaje privado para el administrador (nunca rompe el robot)."""
+    try:
+        spec = importlib.util.spec_from_file_location('avisar_admin', AQUI / 'avisar_admin.py')
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        mod.enviar(texto)
+    except Exception as e:                                              # noqa: BLE001
+        print(f'(No se pudo avisar al administrador: {type(e).__name__}.)')
+
+
+def poblaciones_auto(carpeta, extra):
+    """Completa poblaciones_pendientes.csv. -> (ruta del CSV listo | None, creadas, fallos)."""
+    pend = Path(carpeta) / 'poblaciones_pendientes.csv'
+    if not pend.exists():
+        return None, [], []
+    spec = importlib.util.spec_from_file_location('poblaciones_auto', AQUI / 'poblaciones_auto.py')
+    pa = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(pa)
+    salida = Path(carpeta) / 'poblaciones_auto.csv'
+    creadas, fallos = pa.completar(pend, salida, extra if extra.exists() else None)
+    return (salida if not fallos else None), creadas, fallos
+
+
+def cargar(imp, carpeta):
     args = [str(carpeta), '--si', '--solo-si-nuevo']
     extra = AQUI / 'poblaciones_nuevas.csv'                          # poblaciones que aún no están en la base (con su provincia y coordenadas)
     if extra.exists():
         args += ['--poblaciones', str(extra)]
     cod = imp.main(args)
+    creadas = []
+    if cod == 2 and (Path(carpeta) / 'poblaciones_pendientes.csv').exists():
+        print('\nHay poblaciones nuevas: intento darlas de alta automáticamente (OpenStreetMap)...')
+        try:
+            csv_listo, creadas, fallos = poblaciones_auto(carpeta, extra)
+        except Exception as e:                                          # noqa: BLE001
+            csv_listo, creadas, fallos = None, [], [('(todas)', f'{type(e).__name__}: {str(e)[:150]}')]
+        for c in creadas:
+            print(f"  + {c['nombre']}: {c['provincia']} ({c['lat']}, {c['lon']})  <- {c.get('fuente', '')[:90]}")
+        for n, motivo in fallos:
+            print(f'  ! {n}: {motivo}')
+        if csv_listo is None:
+            avisar_admin('⚠️ JusticiaCV: hay poblaciones nuevas y NO he podido darlas de alta solo:\n'
+                         + '\n'.join(f'• {n}: {m}' for n, m in fallos)
+                         + '\n\nAñádelas a mano en Supabase (SQL) y lanza el robot otra vez.')
+        else:
+            args = [str(carpeta), '--si', '--solo-si-nuevo', '--poblaciones', str(csv_listo)]
+            cod = imp.main(args)
+    if cod in (0, 10) and creadas:
+        avisar_admin('🆕 JusticiaCV: el robot ha dado de alta poblaciones nuevas. Mira que el sitio sea el correcto:\n'
+                     + '\n'.join(f"• {c['nombre']} ({c['provincia']}): https://www.openstreetmap.org/?mlat={c['lat']}&mlon={c['lon']}#map=13/{c['lat']}/{c['lon']}"
+                                  for c in creadas))
     if cod == 10:
         print('\nSin novedades.')
         return avisos()
