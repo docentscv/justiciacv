@@ -7,7 +7,7 @@ var APK = 'JusticiaCV.apk';
 var ua = navigator.userAgent || '';
 var ANDROID = /Android/i.test(ua);
 var IOS = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-var INSTALADA = navigator.standalone === true || /^android-app:\/\//.test(document.referrer || '') ||
+var INSTALADA = navigator.standalone === true || /^android-app:\/\/io\.github\.docentscv\.justiciacv/.test(document.referrer || '') ||
   (window.matchMedia && matchMedia('(display-mode: standalone)').matches);
 if (INSTALADA) return;                                   /* ya está dentro de la app: no se enseña nada */
 

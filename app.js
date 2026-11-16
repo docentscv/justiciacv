@@ -535,7 +535,7 @@ function accBoot() {
     if (h.recovery && ACC.loggedIn()) return accRecovery();
     if (!ACC.loggedIn()) {
       if (INV_NUEVO) { INV_NUEVO = false; A.mode = 'up'; }
-      if (!flash && store.get('inv', '')) flash = { ok: 'Te ha invitado un compañero: al crear tu cuenta (o entrar en la tuya) tendrás 7 días más de prueba.' };
+      if (!flash && store.get('inv', '')) flash = { ok: 'Te ha invitado un compañero: ' + (new Date() < GRATIS_FIN ? 'es gratis todo 2026. Crea tu cuenta (o entra en la tuya) para empezar.' : 'al crear tu cuenta (o entrar en la tuya) tendrás 7 días más de prueba.') };
       return accAuth(flash);
     }
     accLoad(flash);
@@ -872,10 +872,10 @@ function usCsv() {
 
 /* ---- Invitar a compañeros (09_invitar.sql): 3 que pagan = tu año gratis; ellos, 7 días más de prueba ---- */
 var GO_INV = false;
-var INV_TXT = 'Mira tu puesto en la bolsa de Justicia, las ofertas cerca de ti y los avisos de cada semana en JusticiaCV. Con mi enlace tienes 7 días más gratis:';
+var INV_TXT = 'Mira tu puesto en la bolsa de Justicia, las ofertas cerca de ti y los avisos de cada semana en JusticiaCV. ' + (new Date() < GRATIS_FIN ? 'Es gratis todo 2026:' : 'Con mi enlace tienes 7 días más gratis:');
 function invCard() {
   return '<section class="card" id="inv-card"><div class="sec-h"><h3>Invita a tus compañeros</h3><span class="pill" id="inv-pill" hidden></span></div>' +
-    '<p style="margin-top:8px">Si <b>3 compañeros</b> pagan su año con tu enlace, <b>tu año te sale gratis</b>. Y ellos tienen <b>7 días más de prueba</b>.</p>' +
+    '<p style="margin-top:8px">Si <b>3 compañeros</b> pagan su año con tu enlace, <b>tu año te sale gratis</b>. ' + (new Date() < GRATIS_FIN ? 'Ahora es <b>gratis para todos todo 2026</b>; desde el 1 de enero, con tu enlace ellos tendrán 7 días más de prueba.' : 'Y ellos tienen <b>7 días más de prueba</b>.') + '</p>' +
     '<div id="inv-body" style="margin-top:12px"><p class="hint">Cargando tu enlace…</p></div></section>';
 }
 function irInv() {
