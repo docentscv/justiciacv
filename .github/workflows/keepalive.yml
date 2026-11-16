@@ -1,0 +1,41 @@
+# JusticiaCV · keep-alive de Supabase. Toca una fila de la base lunes y jueves para que el plan gratuito no se pause por inactividad.
+# Usa los secretos que el robot ya tiene (SUPABASE_URL y SUPABASE_SERVICE_KEY): no hay que crear ninguno nuevo.
+name: Keep-alive Supabase
+
+on:
+  schedule:
+    - cron: '17 6 * * 1,4'     # lunes y jueves
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Actualizar la fila keepalive
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          set -e
+          AUTH=()
+          case "$KEY" in sb_*) ;; *) AUTH=(-H "Authorization: Bearer $KEY");; esac   # las claves nuevas (sb_secret_...) van solo en apikey
+          OUT=$(curl -sS --fail -X PATCH "${SUPABASE_URL%/}/rest/v1/keepalive?id=eq.1" \
+            -H "apikey: $KEY" "${AUTH[@]}" \
+            -H "Content-Type: application/json" -H "Prefer: return=representation" \
+            -d "{\"last_ping\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"}")
+          echo "$OUT"
+          echo "$OUT" | grep -q '"id"' || { echo "No se actualizó ninguna fila: ¿has ejecutado keepalive.sql?"; exit 1; }
+      - name: Avisarme por Telegram si ha fallado
+        if: failure()
+        continue-on-error: true
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_ADMIN_CHAT_ID: ${{ secrets.TELEGRAM_ADMIN_CHAT_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: '[ -f avisar_admin.py ] && python3 avisar_admin.py fallo || true'
