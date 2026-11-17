@@ -239,7 +239,7 @@ _RX_B = re.compile(r'^\S+\*+\S*\s+(?P<name>[^\d]+?)\s*(?P<puesto>\d{5,8})\s+(?P<
 
 
 def leer_adjudicados(ruta):
-    """-> (adjudicaciones, sin_leer). Solo se queda con grupo, cuerpo (si viene) y nº de puesto: ni DNI ni nombre."""
+    """-> (adjudicaciones, sin_leer). Grupo, cuerpo (si viene), nº de puesto y nombre (el nombre SOLO en memoria: en Supabase se convierte en huella). Nunca el DNI."""
     lineas = []
     for pag in texto_layout(ruta):
         lineas += [l.strip() for l in pag.replace('\f', '').split('\n') if l.strip()]
@@ -258,7 +258,7 @@ def leer_adjudicados(ruta):
             if m:
                 i += 1
         if m:
-            filas.append(dict(grupo=int(m['g']), cuerpo=m.groupdict().get('cuerpo') or '', n_puesto=int(m['puesto'])))
+            filas.append(dict(grupo=int(m['g']), cuerpo=m.groupdict().get('cuerpo') or '', n_puesto=int(m['puesto']), nombre=ws(m['name'])))
         else:
             mal += 1
     return filas, mal
@@ -663,6 +663,13 @@ def subir_todo(S, db, a_crear, existente=None):
         filas = [dict(oferta_id=ofe[a['n_puesto']], grupo=a['grupo']) for a in S.adj if a['n_puesto'] in ofe]
         db.subir('adjudicaciones', filas, 'oferta_id')
         n_adj = len(filas)
+        # Mi puesto «Estás trabajando en…»: el nombre se convierte en huella en Supabase y se descarta (13_destino.sql)
+        try:
+            n_h = db.rpc('importar_adjudicados', {'p_convocatoria': cid, 'p_filas': [
+                dict(n_puesto=a['n_puesto'], nombre=a['nombre']) for a in S.adj if a.get('nombre') and a['n_puesto'] in ofe]}, ocultar=True)
+            paso(f'destinos para «Mi puesto» ({n_h})')
+        except Exception as e:                                   # noqa: BLE001  (si falta 13_destino.sql no se para la carga)
+            print(f'   (aviso) no se han guardado los destinos para «Mi puesto»: {type(e).__name__}. ¿Falta 13_destino.sql?')
 
     if S.lista:
         paso(f'listado completo ({miles(len(S.lista))} filas; los nombres se convierten en huella y se descartan)')
