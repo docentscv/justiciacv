@@ -285,7 +285,7 @@ export function leerAdjudicadosDeLineas(lineasTodas) {
       m = RX_A.exec(j) || RX_B.exec(j);
       if (m) i++;
     }
-    if (m) filas.push({ grupo: parseInt(m.groups.g, 10), cuerpo: m.groups.cuerpo || '', n_puesto: parseInt(m.groups.puesto, 10) });
+    if (m) filas.push({ grupo: parseInt(m.groups.g, 10), cuerpo: m.groups.cuerpo || '', n_puesto: parseInt(m.groups.puesto, 10), nombre: ws(m.groups.name) });   // el nombre solo en memoria: en Supabase se convierte en huella
     else mal++;
   }
   return { filas, mal };

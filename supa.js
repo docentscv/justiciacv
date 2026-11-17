@@ -205,6 +205,8 @@
     },
     pushRegistrar: function (endpoint, p256dh, auth) { return authed('POST', '/rest/v1/rpc/registrar_push', { json: { p_endpoint: endpoint, p_p256dh: p256dh, p_auth: auth } }); },
     pushQuitar: function (endpoint) { return authed('POST', '/rest/v1/rpc/quitar_push', { json: { p_endpoint: endpoint } }); },
+    miDestino: function () { return authed('POST', '/rest/v1/rpc/mi_destino', { json: {} }); },
+    adminSubirAdjudicados: function (cid, filas) { return authed('POST', '/rest/v1/rpc/admin_subir_adjudicados', { json: { p_convocatoria: cid, p_filas: filas } }); },
     enviarSugerencia: function (t, x, d) { return authed('POST', '/rest/v1/rpc/enviar_sugerencia', { json: { p_tipo: t, p_texto: x, p_donde: d } }); },
     misSugerencias: function () { return authed('POST', '/rest/v1/rpc/mis_sugerencias', { json: {} }); },
     adminSugerencias: function () { return authed('POST', '/rest/v1/rpc/admin_sugerencias', { json: {} }); },

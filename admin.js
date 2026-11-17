@@ -272,6 +272,10 @@ async function cargar() {
     st[0][1] = 'ahora'; draw();
     cid = await conReintentos(() => ACC.adminPreparar(construirPayload(S, pobs)));
     if (typeof cid !== 'number') throw new Error('Respuesta inesperada del servidor.');
+    if (S.adj && S.adj.length && ACC.adminSubirAdjudicados) {          // Mi puesto «Estás trabajando en…» (13_destino.sql)
+      try { await conReintentos(() => ACC.adminSubirAdjudicados(cid, S.adj.filter((a) => a.nombre).map((a) => ({ n_puesto: a.n_puesto, nombre: a.nombre })))); }
+      catch (e) { S.avisos.push('No se han guardado los destinos para «Mi puesto» (¿falta 13_destino.sql?).'); }
+    }
     st[0][1] = 'hecho'; draw();
     if (hayLista) {
       st[1][1] = 'ahora';

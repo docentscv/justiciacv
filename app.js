@@ -776,7 +776,8 @@ function accDash(flash) {
     msg(flash) + '</section>';
   if (!st.ok) return accPaywall(head);
   r.innerHTML = head + '<div class="card empty" role="status">Cargando tu posición…</div>';
-  Promise.all([ACC.posicion(), ACC.historial()]).then(function (res) { A.pos = res[0]; A.hist = res[1]; if (A.sel >= A.pos.length) A.sel = 0; drawDash(head); },
+  Promise.all([ACC.posicion(), ACC.historial(), ACC.miDestino ? ACC.miDestino()['catch'](function () { return []; }) : []]).then(function (res) {
+    A.pos = res[0]; A.hist = res[1]; A.dest = (res[2] || []).slice().sort(function (a, b) { return b.anio - a.anio || b.convocatoria - a.convocatoria; }); if (A.sel >= A.pos.length) A.sel = 0; drawDash(head); },
     function (e) { if (e.sinAcceso) accPaywall(head); else accFatal(e); });
 }
 function accPaywall(head) {
@@ -789,8 +790,17 @@ function accPaywall(head) {
 function drawDash(head) {
   var r = accRoot(); if (!r) return;
   var rows = A.pos, lw = weeks.filter(function (w) { return w.filas != null; }).pop();
+  var dest = (A.dest || [])[0] || null;
   if (!rows.length) {
-    r.innerHTML = head + '<section class="card"><h3>No aparecemos en el último listado</h3><p style="margin-top:8px">Tu fila guardada no está en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '. Puede ser que tu cuerpo no tuviera ofertas esa semana, ya que el listado solo incluye los cuerpos con ofertas, o que hayas salido de la lista.</p></section>';
+    var hAll = (A.hist || []).slice().sort(function (a, b) { return a.convocatoria - b.convocatoria; }), ult = hAll[hAll.length - 1];
+    var trabajando = dest || (ult && ult.estado === 'adjudicada');
+    r.innerHTML = head + (dest ? destinoCard(dest, true) : trabajando
+      ? '<section class="card"><p class="eyebrow">Estás trabajando</p><h3 style="margin-top:4px">Te adjudicaron una oferta en la convocatoria ' + ult.convocatoria + '/2026 (grupo ' + ult.grupo + ')</h3><p class="hint" style="margin-top:8px">Has salido de la lista, como pasa siempre unas dos semanas después de una adjudicación. Cuando termines volverás a aparecer (si venías del grupo 3 o 4, normalmente en el grupo 2) y aquí volverás a ver tu puesto.</p></section>'
+      : '<section class="card"><h3>No aparecemos en el último listado</h3><p style="margin-top:8px">Tu fila guardada no está en el último listado completo' + (lw ? ' (convocatoria ' + lw.c + '/2026)' : '') + '. Puede ser que tu cuerpo no tuviera ofertas esa semana, ya que el listado solo incluye los cuerpos con ofertas, o que hayas salido de la lista.</p></section>') +
+      (hAll.length ? '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo en el que apareciste.</p><div class="chart" id="histchart" style="margin-top:8px"></div></section>' : '') +
+      nemCard() + invCard();
+    if (hAll.length) histChart($('#histchart'), hAll);
+    bindAccCard(); bindInv();
     return;
   }
   var cur = rows[A.sel] || rows[0], S = { cu: cur.cuerpo, g: cur.grupo, pos: cur.posicion_en_grupo };
@@ -802,7 +812,8 @@ function drawDash(head) {
     return rows.length > 1 ? '<button type="button" class="mytop" data-sel="' + i + '" aria-pressed="' + (i === A.sel) + '">' + inner + '</button>' : '<div class="mytop">' + inner + '</div>';
   }).join('') + '<p class="muted" style="margin-top:10px" id="pob-box">Convocatoria <span class="num">' + cur.convocatoria + '</span> · Población: <b>' + esc(C.home) + '</b>' + (A.admin ? ' <button class="linkbtn" type="button" id="b-pob">Cambiar</button>' : '') + '</p>';
   var __go = GO_NEM; GO_NEM = false;
-  r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' + nemCard() +
+  var destReciente = dest && dest.anio === new Date(last.f).getFullYear() && dest.convocatoria >= last.c - 2;
+  r.innerHTML = head.replace('</section>', '') + sel + resumen + '</section>' + (destReciente ? destinoCard(dest, false) : '') + nemCard() +
     '<section id="acc-out" style="display:grid;gap:22px"></section>' +
     '<section class="card"><h3>Tu evolución</h3><p class="hint">Tu puesto dentro de tu grupo en cada listado completo. Si cambias de grupo, el puesto se cuenta desde el principio del grupo nuevo.</p><div class="chart" id="histchart" style="margin-top:8px"></div>' +
     '<div class="legend" style="margin-top:6px"><span><i class="sw" style="background:var(--c-none);border-radius:50%"></i>No pides ofertas</span><span><i class="sw" style="background:var(--c-vac);border-radius:50%"></i>Pides y no te toca</span><span><i class="sw" style="background:var(--c-ref);border-radius:50%"></i>Adjudicada</span></div>' +
@@ -830,6 +841,18 @@ function drawDash(head) {
   bindTables(r); bindAccCard(); bindInv();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
+}
+
+/* ---- Dónde trabajas (13_destino.sql): la última oferta que te adjudicaron. Solo la ves tú. ---- */
+var TIPO_N = { vacante: 'Vacante', sustitucion: 'Sustitución', refuerzo: 'Refuerzo' };
+function destinoCard(d, fuera) {
+  var fin = '';
+  if (d.tipo === 'refuerzo' && d.observaciones) { var m = String(d.observaciones).match(/(\d{2})-(\d{2})-(\d{4})/); if (m) fin = ' Refuerzo hasta el ' + m[1] + '/' + m[2] + '/' + m[3] + ', con posibles prórrogas.'; }
+  return '<section class="card" id="dest-card"><div class="sec-h"><div><p class="eyebrow">' + (fuera ? 'Estás trabajando' : 'Te han adjudicado') + '</p><h2 style="margin-top:4px">' + esc(d.centro || ('Oferta ' + d.n_puesto)) + '</h2><p class="hint">' + esc(d.poblacion || '') + (d.provincia ? ' · ' + esc(d.provincia) : '') + '</p></div><span class="pill ok">' + esc(TIPO_N[d.tipo] || d.tipo || '') + '</span></div>' +
+    '<p style="margin-top:8px">' + esc(cuNombre(d.cuerpo)) + (d.grupo ? ' · grupo ' + d.grupo : '') + ' · Nº de puesto <span class="mono">' + esc(d.n_puesto) + '</span> · convocatoria ' + d.convocatoria + '/' + d.anio + (d.fecha ? ' (' + fmtD(d.fecha) + ')' : '') + '.' + esc(fin) + '</p>' +
+    (fuera ? '<p class="hint" style="margin-top:8px">Has salido de la lista, como pasa siempre unas dos semanas después de una adjudicación. Cuando termines volverás a aparecer (si venías del grupo 3 o 4, normalmente en el grupo 2) y aquí volverás a ver tu puesto.</p>'
+      : '<p class="hint" style="margin-top:8px">Unas dos semanas después de la adjudicación saldrás de la lista; entonces aquí verás «Estás trabajando» con este destino.</p>') +
+    '<p class="hint" style="margin-top:6px">Sale del PDF oficial de puestos adjudicados. Solo lo ves tú.</p></section>';
 }
 
 /* ---- Sugerencias o averías (12_sugerencias.sql): el usuario escribe; el administrador lo ve en su buzón ---- */
