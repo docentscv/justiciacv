@@ -182,7 +182,8 @@ function offerCard(o, extra) {
   return '<article class="offer"><div class="row" style="justify-content:space-between;flex-wrap:nowrap"><div class="row">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span></div>' + starBtn(o.pob) + '</div>' +
     '<h3>' + esc(o.centro) + '</h3><div class="where"><span>' + esc(o.pob) + '</span>' + (o.prov !== 'Sin provincia' ? '<span>· ' + o.prov + '</span>' : '') + (extra ? '<span>· ' + extra + '</span>' : '') + '</div>' +
     (det ? '<p class="hint">' + esc(det) + '</p>' : '') +
-    '<div class="foot"><span>' + res + '</span><span class="num">Conv. ' + o.c + '/2026 · <span class="mono">' + o.id + '</span></span></div></article>';
+    '<div class="foot"><span>' + res + '</span><span class="num">Conv. ' + o.c + '/2026 · <span class="mono">' + o.id + '</span></span></div>' +
+    '<div class="row"><button class="btn small" type="button" data-ruta="' + o.c + '-' + o.id + '">' + RUTA_ICO + 'Mapa · distancia desde casa</button></div></article>';
 }
 
 /* ---------- vistas ---------- */
@@ -641,6 +642,7 @@ function accLoad(flash) {
     if (A.view === 'usuarios' && A.admin) return accUsuarios(flash);
     if (A.view === 'buzon' && A.admin) return accBuzon(flash);
     if (A.view === 'sugerencias') return accSug(flash);
+    if (A.view === 'ruta' && RUTA.o) return accRuta(flash);
     A.view = 'main';
     if (!me.listas.length) return accAlta(flash);
     accDash(flash);
@@ -841,6 +843,63 @@ function drawDash(head) {
   bindTables(r); bindAccCard(); bindInv();
   renderCuenta($('#acc-out'), S);
   histChart($('#histchart'), hist);
+}
+
+/* ---- Ruta a una oferta: mapa desde tu población, km y tiempo aproximados y enlace a Google Maps ---- */
+var RUTA = { o: null, desde: null, volver: '#ofertas' };
+var RUTA_ICO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:6px;vertical-align:-3px"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>';
+document.addEventListener('click', function (ev) {
+  var b = ev.target.closest ? ev.target.closest('[data-ruta]') : null; if (!b) return;
+  ev.preventDefault();
+  var k = b.dataset.ruta.split('-'), o = allOffers.filter(function (x) { return x.c === +k[0] && String(x.id) === k[1]; })[0]; if (!o) return;
+  RUTA.o = o; RUTA.desde = null; RUTA.volver = location.hash || '#ofertas';
+  if (ACC) { A.view = 'ruta'; if (location.hash !== '#cuenta') location.hash = '#cuenta'; else accLoad(); }
+});
+function rutaCalc(a, b) {
+  var recta = km(a, b);
+  if (recta < 1) return { recta: 0, carretera: 0, min: 0 };
+  var carretera = Math.max(recta + 1, recta * 1.3);                       // las carreteras dan rodeos: ~30 % más que en línea recta
+  var vel = carretera < 15 ? 45 : carretera < 60 ? 70 : carretera < 150 ? 90 : 100;   // km/h medios: ciudad, comarcal, autovía
+  return { recta: recta, carretera: carretera, min: Math.round(carretera / vel * 60 + 5) };
+}
+function minTxt(m) { return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + String(m % 60).padStart(2, '0') + ' min'; }
+function accRuta(flash) {
+  var r = accRoot(); if (!r) return;
+  var o = RUTA.o, hi = RUTA.desde != null ? RUTA.desde : homeIdx(), h = D.xy[hi], d = D.xy[o.pi], x = rutaCalc(h, d);
+  var desdeN = dpob(D.pobs[hi]), provH = D.provs[hi];
+  var dest = 'Juzgados de ' + o.pob + (o.prov !== 'Sin provincia' ? ', ' + o.prov : '');   // Google encuentra mejor el edificio así que con el nombre del órgano
+  var gm = function (modo) { return 'https://www.google.com/maps/dir/?api=1&origin=' + encodeURIComponent(desdeN + (provH && provH !== 'Sin provincia' ? ', ' + provH : '') + ', España') + '&destination=' + encodeURIComponent(dest + ', España') + '&travelmode=' + modo; };
+  var homes = D.pobs.map(function (p, i) { return { i: i, n: dpob(p) }; }).sort(function (a, b) { return a.n.localeCompare(b.n, 'es'); });
+  var misma = x.recta === 0;
+  r.innerHTML = '<section class="card"><div class="sec-h"><div><p class="eyebrow">Cómo llegar</p><h2 style="margin-top:4px">' + esc(o.centro) + '</h2><p class="hint">' + esc(o.pob) + (o.prov !== 'Sin provincia' ? ' · ' + esc(o.prov) : '') + '</p></div><button class="btn small" type="button" id="ru-back">← Volver</button></div>' + msg(flash) +
+    '<div class="row" style="margin-top:8px">' + pillTipo(o.tipo) + '<span class="pill">' + CUN[o.cu] + '</span>' + resPill(o) + '<span class="muted num">Conv. ' + o.c + '/2026 · <span class="mono">' + o.id + '</span></span></div>' +
+    '<div class="field" style="margin-top:12px;max-width:320px"><label for="ru-desde">Desde</label><select class="input" id="ru-desde">' + homes.map(function (q) { return '<option value="' + q.i + '"' + (q.i === hi ? ' selected' : '') + '>' + esc(q.n) + (q.i === homeIdx() ? ' (tu población)' : '') + '</option>'; }).join('') + '</select></div>' +
+    (misma ? '<p style="margin-top:12px"><b>Está en tu misma población.</b></p>' :
+    '<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr))"><div class="kpi"><b class="num">≈ ' + Math.round(x.carretera) + ' km</b><span>por carretera</span></div><div class="kpi"><b class="num">≈ ' + minTxt(x.min) + '</b><span>en coche</span></div><div class="kpi"><b class="num">' + Math.round(x.recta) + ' km</b><span>en línea recta</span></div></div>' +
+    '<p class="hint" style="margin-top:6px">Kilómetros y tiempo aproximados, calculados desde el centro de cada población. Para la ruta exacta y el tráfico de ahora, ábrelo en Google Maps.</p>') +
+    '<div class="row" style="margin-top:12px"><a class="btn primary" href="' + esc(gm('driving')) + '" target="_blank" rel="noopener noreferrer">Abrir en Google Maps ↗</a><a class="btn" href="' + esc(gm('transit')) + '" target="_blank" rel="noopener noreferrer">En transporte público ↗</a></div></section>' +
+    '<section class="card" style="padding:12px"><div class="map" id="ru-map" style="height:340px;cursor:default" role="img" aria-label="Mapa desde ' + esc(desdeN) + ' hasta ' + esc(o.pob) + '"><div class="mp-tiles"></div><svg id="ru-svg" style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none"></svg>' +
+    '<div class="mp-attr"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© colaboradores de OpenStreetMap</a></div></div>' +
+    '<div class="legend" style="margin-top:8px"><span><i class="dot" style="background:var(--brand)"></i>' + esc(desdeN) + '</span><span><i class="dot" style="background:var(--c-sus)"></i>' + esc(o.pob) + '</span></div></section>';
+  $('#ru-back').addEventListener('click', function () { A.view = 'main'; var v = RUTA.volver; RUTA.o = null; if (v && v !== '#cuenta') location.hash = v; else accLoad(); });
+  $('#ru-desde').addEventListener('change', function (e) { RUTA.desde = +e.target.value; accRuta(); });
+  rutaMapa($('#ru-map'), h, d);
+}
+function rutaMapa(el, a, b) {
+  if (!el) return;
+  var W = el.clientWidth, H = el.clientHeight, pad = 60, z = ZMAX;
+  for (; z > ZMIN; z--) { if (Math.abs(mercX(a[1], z) - mercX(b[1], z)) <= W - 2 * pad && Math.abs(mercY(a[0], z) - mercY(b[0], z)) <= H - 2 * pad) break; }
+  z = Math.min(z, 12);
+  var cx = (mercX(a[1], z) + mercX(b[1], z)) / 2, cy = (mercY(a[0], z) + mercY(b[0], z)) / 2, left = cx - W / 2, top = cy - H / 2, n = Math.pow(2, z), tl = $('.mp-tiles', el);
+  for (var ty = Math.floor(top / 256); ty <= Math.floor((top + H) / 256); ty++) for (var tx = Math.floor(left / 256); tx <= Math.floor((left + W) / 256); tx++) {
+    if (ty < 0 || ty >= n) continue;
+    var im = new Image(); im.alt = ''; im.className = 'mp-t'; im.draggable = false; im.onerror = function () { this.style.visibility = 'hidden'; };
+    im.style.transform = 'translate(' + Math.round(tx * 256 - left) + 'px,' + Math.round(ty * 256 - top) + 'px)';
+    im.src = TILE_URL + z + '/' + (((tx % n) + n) % n) + '/' + ty + '.png'; tl.appendChild(im);
+  }
+  var p = function (q) { return [mercX(q[1], z) - left, mercY(q[0], z) - top]; }, pa = p(a), pb = p(b);
+  $('#ru-svg', el).innerHTML = '<line x1="' + pa[0] + '" y1="' + pa[1] + '" x2="' + pb[0] + '" y2="' + pb[1] + '" stroke="#13295B" stroke-width="3" stroke-dasharray="8 6" stroke-linecap="round"/>' +
+    '<circle cx="' + pa[0] + '" cy="' + pa[1] + '" r="9" fill="var(--brand)" stroke="#fff" stroke-width="3"/><circle cx="' + pb[0] + '" cy="' + pb[1] + '" r="9" fill="var(--c-sus)" stroke="#fff" stroke-width="3"/>';
 }
 
 /* ---- Dónde trabajas (13_destino.sql): la última oferta que te adjudicaron. Solo la ves tú. ---- */
